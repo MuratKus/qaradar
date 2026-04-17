@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qaradar"
-version = "0.1.0"
-description = "QA Radar — point it at a repo, get the quality landscape. MCP server + CLI for AI-era test governance."
+version = "0.1.1"
+description = "QA Radar — give your AI coding agent the quality brain it doesn't have to grow from scratch."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    { name = "Murat", email = "murat@qaradar.dev" }
+    { name = "Murat", email = "me@murat-kus.com" }
 ]
 keywords = ["qa", "testing", "mcp", "quality-engineering", "test-governance"]
 classifiers = [
@@ -27,12 +27,15 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov", "ruff", "mypy"]
+
 [project.scripts]
 qaradar = "qaradar.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/murat/qaradar"
-Repository = "https://github.com/murat/qaradar"
+Homepage = "https://github.com/Muratkus/qaradar"
+Repository = "https://github.com/Muratkus/qaradar"
 
 [tool.pytest.ini_options]
 norecursedirs = ["tests/fixtures", ".worktrees", "dist", "build"]

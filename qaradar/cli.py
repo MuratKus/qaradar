@@ -17,7 +17,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="qaradar")
+@click.version_option(version="0.1.1", prog_name="qaradar")
 def main():
     """QA Radar — point it at a repo, get the quality landscape."""
 
