@@ -1,14 +1,14 @@
 # QA Radar
 
-**Point it at a repo, get the quality landscape.**
+**Give your AI coding agent the quality brain it doesn't have to grow from scratch.**
 
-QA Radar analyzes your codebase and produces a structured quality health report — combining git churn, test coverage, and test-to-source mapping into risk-scored modules. It works as a **standalone CLI**, an **MCP server** for AI coding agents (Claude Code, Cursor, Copilot), or a **CI integration** that comments quality briefs on PRs.
+QA Radar analyzes your codebase and produces a structured quality health report — combining git churn, test coverage, and test-to-source mapping into risk-scored modules. It works as an **MCP server** for AI coding agents (Claude Code, Cursor, Windsurf) and as a **standalone CLI** for humans and CI pipelines.
 
-Built for QA leaders and developers who need to know *where* quality attention is needed most — not just "write more tests."
+Built for developers who want their AI agent to write *targeted* tests, not generic ones.
 
 ## What It Does
 
-QA Radar answers the question every new team member asks: **"What should I test first?"**
+QA Radar answers the question every new team member (and every AI agent) asks: **"What should I test first?"**
 
 It scans three signals and combines them into a per-file risk score:
 
@@ -20,23 +20,62 @@ It scans three signals and combines them into a per-file risk score:
 
 The output is a ranked list of modules by risk level (critical → low), with human-readable reasons for each rating.
 
-## Install
+## Why Not Just Let the Agent Do It?
 
-```bash
-pip install qaradar
+A capable agent with bash access could run `git log --numstat`, parse `coverage.xml`, and glob for test files. So why an MCP server?
+
+| Concern | What QA Radar does instead |
+|---------|---------------------------|
+| **Token cost** | `git log` over 90 days on a medium repo is hundreds of KB. QA Radar returns ~5 KB of structured JSON. |
+| **Determinism** | A weighted risk score computed ad-hoc in-context is unreliable. Code is reproducible. |
+| **Speed** | One tool call vs. 4–6 sequential bash calls + reasoning between each. |
+| **Format normalization** | LCOV / Cobertura / coverage.py JSON / Go cover profiles all parse differently. QA Radar normalizes across formats so the agent doesn't have to. |
+| **Convention encoding** | `test_x.py` for Python, `x.test.ts` for JS/TS, `x_test.go` for Go, `FooTest.java` for Java — encoded once, not re-derived each session. |
+| **Portability** | The same MCP tools work across Claude Code, Cursor, and Windsurf without re-prompting. |
+
+## MCP Server (for AI Coding Agents)
+
+### Setup
+
+Add to your Claude Code config (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "qaradar": {
+      "command": "qaradar",
+      "args": ["serve"]
+    }
+  }
+}
 ```
 
-Or install from source:
+Or start it manually:
 
 ```bash
-git clone https://github.com/murat/qaradar.git
-cd qaradar
-pip install -e .
+qaradar serve
 ```
 
-## Usage
+### Example Prompts
 
-### CLI
+Once connected, ask your agent:
+
+> "What should I test first in this repo?"
+> "Which files are the riskiest right now?"
+> "Show me the highest-churn files from the last month."
+> "Which source files have no tests at all?"
+
+### Available MCP Tools
+
+| Tool | When the Agent Uses It |
+|------|------------------------|
+| `qaradar_healthcheck` | Full quality overview of a repository |
+| `qaradar_risky_modules` | What to test first; which files are riskiest |
+| `qaradar_churn` | Hotspot detection; where regressions tend to occur |
+| `qaradar_coverage_gaps` | Files with low coverage; where the blind spots are |
+| `qaradar_untested_files` | Source files with no corresponding test files |
+
+## CLI
 
 ```bash
 # Full health check on current directory
@@ -52,50 +91,42 @@ qaradar analyze --json-output
 qaradar analyze --top 10
 ```
 
-### MCP Server (for AI Coding Agents)
+## Install
 
-Start the server:
+Install from source:
 
 ```bash
-qaradar serve
+git clone https://github.com/murat/qaradar.git
+cd qaradar
+pip install -e .
 ```
 
-Or add to your Claude Code config (`~/.claude/claude_desktop_config.json`):
+> PyPI release coming in v0.1.1.
 
-```json
-{
-  "mcpServers": {
-    "qaradar": {
-      "command": "qaradar",
-      "args": ["serve"]
-    }
-  }
-}
-```
+## Language Support
 
-Then in Claude Code:
+### Tier 1 — First-class, tested
 
-> "What are the riskiest modules in this repo?"
-> "Which files have no tests?"
-> "Show me the highest churn files from the last month"
+| Language | Test detection | Coverage |
+|----------|---------------|---------|
+| Python | `test_x.py`, `x_test.py` | coverage.py JSON + XML |
+| JavaScript / TypeScript | `x.test.{js,ts,jsx,tsx}`, `x.spec.*` | LCOV |
+| Go | `x_test.go` | Go cover profile (`cover.out`) |
 
-### Available MCP Tools
+### Tier 2 — Best-effort, naming-based
 
-| Tool | Description |
-|------|-------------|
-| `qaradar_healthcheck` | Full quality health report |
-| `qaradar_risky_modules` | Find modules with highest quality risk |
-| `qaradar_churn` | Git churn analysis (hotspot detection) |
-| `qaradar_coverage_gaps` | Files below coverage threshold |
-| `qaradar_untested_files` | Source files with no corresponding tests |
+Java, Kotlin, Ruby, Swift, Rust — test detection via naming conventions, not extensively tested. Coverage via Cobertura XML or LCOV if emitted.
 
-## Supported Formats
+> Coverage parsing is format-driven (Cobertura / LCOV / coverage.py / Go profile), so it spans more ecosystems than test-mapping detection, which is language-specific.
 
-**Coverage reports:** coverage.py JSON, coverage.py XML, Cobertura XML, LCOV
+## Supported Coverage Formats
 
-**Languages (test detection):** Python, JavaScript/TypeScript, Java, Kotlin, Go, Ruby, Swift, Rust
-
-**Git:** Any git repository
+| Format | Tools |
+|--------|-------|
+| coverage.py JSON | Python `coverage run` + `coverage json` |
+| Cobertura XML | Python, Java/Gradle, .NET (Coverlet) |
+| LCOV | JS/TS (Jest/Vitest/Istanbul), C/C++, Rust (grcov) |
+| Go cover profile | `go test -coverprofile=cover.out` |
 
 ## Example Output
 
@@ -125,6 +156,7 @@ Then in Claude Code:
 
 ## Roadmap
 
+- [ ] **v0.1.2** — Claude Code plugin + slash commands (`/qa-check`, `/qa-untested`)
 - [ ] **v0.2** — Diff-aware mode: analyze only changed files in a PR
 - [ ] **v0.3** — CI integration: GitHub Action that posts quality briefs on PRs
 - [ ] **v0.4** — Flaky test detection from CI history (JUnit XML parsing)
