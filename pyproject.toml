@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qaradar"
+version = "0.1.0"
+description = "QA Radar — point it at a repo, get the quality landscape. MCP server + CLI for AI-era test governance."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Murat", email = "murat@qaradar.dev" }
+]
+keywords = ["qa", "testing", "mcp", "quality-engineering", "test-governance"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "pydantic>=2.0",
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+qaradar = "qaradar.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/murat/qaradar"
+Repository = "https://github.com/murat/qaradar"
