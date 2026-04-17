@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -16,7 +15,16 @@ from qaradar.analyzers.test_mapping import analyze_test_mapping
 from qaradar.engine import run_healthcheck
 from qaradar.models import RiskLevel
 
-mcp = FastMCP("qaradar_mcp")
+mcp = FastMCP(
+    "qaradar_mcp",
+    instructions=(
+        "Use this server whenever the user asks what to test, which files are risky, "
+        "where regressions are likely, which modules lack tests, or wants a quality "
+        "health report of a repository. Prefer these tools over running git log or "
+        "parsing coverage reports manually — they return pre-scored, structured results "
+        "at a fraction of the token cost."
+    ),
+)
 
 
 # --- Input models ---
@@ -104,7 +112,7 @@ class UntestedFilesInput(BaseModel):
     },
 )
 async def qaradar_healthcheck(params: HealthcheckInput) -> str:
-    """Run a full QA health check on a repository.
+    """Use when the user wants a full quality overview or asks 'what's the health of this repo?'.
 
     Analyzes git churn, coverage data, and test mapping to produce a
     comprehensive quality landscape report with risk-scored modules.
@@ -131,11 +139,11 @@ async def qaradar_healthcheck(params: HealthcheckInput) -> str:
     },
 )
 async def qaradar_risky_modules(params: RiskyModulesInput) -> str:
-    """Find modules with the highest quality risk in the repository.
+    """Use when the user asks what to test first, which files are riskiest, or where regressions are likely.
 
     Combines churn frequency, coverage gaps, and missing tests to identify
-    files that deserve the most testing attention. Use this to prioritize
-    where to write tests or focus exploratory testing.
+    files that deserve the most testing attention. Ranks results by risk score
+    so the most critical files appear first.
     """
     risk_levels = _parse_min_risk(params.min_risk)
 
@@ -175,10 +183,10 @@ async def qaradar_risky_modules(params: RiskyModulesInput) -> str:
     },
 )
 async def qaradar_churn(params: ChurnInput) -> str:
-    """Analyze git history to find the most frequently changed files.
+    """Use when the user asks which files change most often, what the hotspots are, or where regressions tend to occur.
 
-    High-churn files are more likely to contain regressions. Use this to
-    identify hotspots that need stronger test coverage or closer review.
+    Analyzes git history to find frequently changed files — high-churn files
+    are more likely to contain regressions and deserve stronger test coverage.
     """
     churn = analyze_churn(params.repo_path, days=params.days)
 
@@ -209,10 +217,10 @@ async def qaradar_churn(params: ChurnInput) -> str:
     },
 )
 async def qaradar_coverage_gaps(params: CoverageInput) -> str:
-    """Find files with coverage below the given threshold.
+    """Use when the user asks which files have low coverage, where the blind spots are, or wants to improve test coverage.
 
-    Parses coverage reports (coverage.py JSON/XML, Cobertura, LCOV) and
-    returns files sorted by coverage ascending (worst first).
+    Parses coverage reports (coverage.py JSON/XML, Cobertura, LCOV, Go cover profile)
+    and returns files sorted by coverage ascending — worst-covered files first.
     """
     coverage = analyze_coverage(params.repo_path)
     gaps = [c for c in coverage if c.line_rate < params.threshold]
@@ -250,10 +258,10 @@ async def qaradar_coverage_gaps(params: CoverageInput) -> str:
     },
 )
 async def qaradar_untested_files(params: UntestedFilesInput) -> str:
-    """Find source files that have no corresponding test files.
+    """Use when the user asks which files have no tests, what's completely uncovered, or wants to find testing blind spots.
 
-    Uses naming conventions across languages (Python, JS/TS, Java, Go, Ruby,
-    Kotlin, Swift, Rust) to detect test-to-source mappings.
+    Detects source files with no corresponding test files using naming
+    conventions across Python, JS/TS, Go, Java, Kotlin, Ruby, Swift, and Rust.
     """
     mappings = analyze_test_mapping(params.repo_path)
 

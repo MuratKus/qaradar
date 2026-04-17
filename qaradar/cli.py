@@ -60,7 +60,7 @@ def analyze(repo_path: str, days: int, top: int, json_output: bool):
         click.echo(json.dumps(output, indent=2))
         return
 
-    _render_report(report)
+    _render_report(report, days=days)
 
 
 @main.command()
@@ -71,7 +71,7 @@ def serve():
     server_main()
 
 
-def _render_report(report):
+def _render_report(report, days: int = 90):
     """Render a health report with Rich tables."""
     summary = report.summary()
 
@@ -121,7 +121,7 @@ def _render_report(report):
     # High churn files
     if report.high_churn_files:
         console.print()
-        table = Table(title="Highest Churn Files (last {0} days)".format(90))
+        table = Table(title=f"Highest Churn Files (last {days} days)")
         table.add_column("File", style="cyan", max_width=50)
         table.add_column("Commits", justify="right")
         table.add_column("Lines Changed", justify="right")
