@@ -33,3 +33,7 @@ qaradar = "qaradar.cli:main"
 [project.urls]
 Homepage = "https://github.com/murat/qaradar"
 Repository = "https://github.com/murat/qaradar"
+
+[tool.pytest.ini_options]
+norecursedirs = ["tests/fixtures", ".worktrees", "dist", "build"]
+python_classes = ["Test*Suite", "Test*Case"]

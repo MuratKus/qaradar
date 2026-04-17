@@ -17,6 +17,7 @@ def analyze_coverage(repo_path: str) -> list[CoverageEntry]:
     - coverage.py JSON (coverage.json)
     - coverage.py XML / Cobertura (coverage.xml)
     - lcov (coverage.lcov, lcov.info)
+    - Go cover profile (cover.out, coverage.out)
 
     Returns files sorted by line_rate ascending (worst coverage first).
     """
@@ -24,7 +25,7 @@ def analyze_coverage(repo_path: str) -> list[CoverageEntry]:
     entries: list[CoverageEntry] = []
 
     # Try each format in order of preference
-    for finder in [_find_coverage_json, _find_cobertura_xml, _find_lcov]:
+    for finder in [_find_coverage_json, _find_cobertura_xml, _find_lcov, _find_go_cover]:
         found = finder(repo)
         if found:
             entries = found
@@ -184,4 +185,64 @@ def _parse_lcov(path: Path) -> list[CoverageEntry]:
                     )
                 current_file = None
 
+    return entries
+
+
+def _find_go_cover(repo: Path) -> Optional[list[CoverageEntry]]:
+    """Find and parse a Go cover profile."""
+    candidates = [
+        repo / "cover.out",
+        repo / "coverage.out",
+        repo / "c.out",
+    ]
+    for path in candidates:
+        if path.exists():
+            return _parse_go_cover(path)
+    return None
+
+
+def _parse_go_cover(path: Path) -> list[CoverageEntry]:
+    """Parse Go cover profile format.
+
+    Format:
+        mode: set|count|atomic
+        path/to/file.go:startLine.startCol,endLine.endCol numStmt count
+    """
+    file_stats: dict[str, dict] = {}
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("mode:"):
+                continue
+
+            # e.g. github.com/user/pkg/foo.go:10.5,20.10 3 1
+            try:
+                location, rest = line.rsplit(" ", 2)[0], line.split()
+                filepath = location.split(":")[0]
+                num_stmt = int(rest[1])
+                count = int(rest[2])
+            except (ValueError, IndexError):
+                continue
+
+            if filepath not in file_stats:
+                file_stats[filepath] = {"total": 0, "covered": 0}
+            file_stats[filepath]["total"] += num_stmt
+            if count > 0:
+                file_stats[filepath]["covered"] += num_stmt
+
+    entries = []
+    for filepath, stats in file_stats.items():
+        total = stats["total"]
+        if total == 0:
+            continue
+        covered = stats["covered"]
+        entries.append(
+            CoverageEntry(
+                path=filepath,
+                line_rate=covered / total,
+                lines_covered=covered,
+                lines_total=total,
+            )
+        )
     return entries
