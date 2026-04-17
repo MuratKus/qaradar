@@ -11,6 +11,6 @@ venv/
 .mypy_cache/
 .pytest_cache/
 .coverage
-coverage.*
+/coverage.*
 htmlcov/
 .worktrees/
