@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import fnmatch
 import shutil
-import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from qaradar.git import _git
 from qaradar.models import FileChurn
 
 
@@ -127,16 +127,3 @@ def analyze_churn(
 
     results.sort(key=lambda f: f.commit_count, reverse=True)
     return results
-
-
-def _git(repo: Path, *args: str) -> str:
-    """Run a git command and return stdout."""
-    result = subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"git command failed: {result.stderr.strip()}")
-    return result.stdout
