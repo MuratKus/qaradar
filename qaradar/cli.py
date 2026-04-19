@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from qaradar.engine import run_healthcheck
+from qaradar.engine import run_healthcheck, run_pr_risk
 from qaradar.models import RiskLevel
 
 console = Console()
@@ -27,9 +27,26 @@ def main():
 @click.option("--days", default=90, help="Days of git history to analyze (default: 90)")
 @click.option("--top", default=20, help="Number of risky modules to show (default: 20)")
 @click.option("--json-output", is_flag=True, help="Output raw JSON instead of formatted tables")
-def analyze(repo_path: str, days: int, top: int, json_output: bool):
-    """Run a full QA health check on a repository."""
+@click.option(
+    "--base",
+    default=None,
+    help="Base ref to diff against (e.g. main, origin/main). Enables diff-aware mode.",
+)
+def analyze(repo_path: str, days: int, top: int, json_output: bool, base: str | None):
+    """Run a full QA health check on a repository.
+
+    With --base, scores only files changed since that ref (diff-aware mode).
+    """
     try:
+        if base is not None:
+            with console.status("[bold blue]Analyzing PR changes..."):
+                pr_report = run_pr_risk(repo_path, base_ref=base, churn_days=days)
+            if json_output:
+                click.echo(json.dumps(pr_report.summary(), indent=2))
+            else:
+                _render_pr_risk(pr_report)
+            return
+
         with console.status("[bold blue]Scanning repository..."):
             report = run_healthcheck(repo_path, churn_days=days, top_n=top)
     except ValueError as e:
@@ -69,6 +86,69 @@ def serve():
     from qaradar.server import main as server_main
 
     server_main()
+
+
+def _render_pr_risk(report) -> None:
+    """Render a PrRiskReport with Rich tables."""
+    s = report.summary()
+    high_plus = s["high_plus_count"]
+    total = s["changed_source_files"]
+
+    if report.status == "no_changes":
+        console.print("\n[dim]No changes detected relative to base ref.[/dim]\n")
+        return
+
+    console.print()
+    console.print(
+        Panel(
+            f"[bold]Base ref:[/bold] {s['base_ref']}\n"
+            f"[bold]Changed files:[/bold] {s['total_changed_files']}  "
+            f"[bold]Source files:[/bold] {total}\n"
+            f"[bold red]{s['critical_count']} CRITICAL[/bold red]  "
+            f"[yellow]{s['high_count']} HIGH[/yellow]  "
+            f"[blue]{s['medium_count']} MEDIUM[/blue]  "
+            f"[green]{s['low_count']} LOW[/green]",
+            title="[bold blue]QA Radar — PR Risk Report[/bold blue]",
+            border_style="blue",
+        )
+    )
+
+    headline_style = "bold red" if high_plus > 0 else "green"
+    console.print(
+        f"\n  [{headline_style}]{high_plus} of {total} changed source files are HIGH+ risk[/{headline_style}]"
+    )
+
+    if report.risky_changed_files:
+        console.print()
+        table = Table(title="Risky Changed Files", show_lines=False)
+        table.add_column("File", style="cyan", no_wrap=True, max_width=55)
+        table.add_column("Risk", justify="center", width=10)
+        table.add_column("Score", justify="right", width=7)
+        table.add_column("Reasons", style="dim")
+
+        for m in report.risky_changed_files:
+            risk_style = _risk_style(m.risk_level)
+            table.add_row(
+                _truncate(m.path, 55),
+                f"[{risk_style}]{m.risk_level.value.upper()}[/{risk_style}]",
+                f"{m.risk_score:.2f}",
+                "; ".join(m.reasons[:2]) if m.reasons else "-",
+            )
+        console.print(table)
+
+    if report.changed_files_without_tests:
+        console.print()
+        console.print(
+            f"[bold]Changed files without tests ({len(report.changed_files_without_tests)}):[/bold]"
+        )
+        for f in report.changed_files_without_tests[:10]:
+            console.print(f"  [dim]·[/dim] {f}")
+
+    if report.changed_test_files:
+        console.print()
+        console.print(f"[dim]Tests also touched: {', '.join(report.changed_test_files[:5])}[/dim]")
+
+    console.print()
 
 
 def _render_report(report, days: int = 90):
