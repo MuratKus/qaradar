@@ -28,6 +28,10 @@ def score_risks(
     - Coverage:  0.35 (low coverage = less safety net)
     - Test map:  0.30 (no tests = blind spot)
 
+    INVARIANT: `churn_data` must be the full-repo churn list, not a pre-filtered
+    subset. Normalization factors (max_commits, max_churn_lines) are computed from
+    this list; filtering to a diff slice must happen on the *output*, not the input.
+
     Returns modules sorted by risk_score descending (riskiest first).
     """
     if weights is None:
