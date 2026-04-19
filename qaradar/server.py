@@ -13,7 +13,7 @@ from qaradar.analyzers.coverage import analyze_coverage
 from qaradar.analyzers.risk import score_risks
 from qaradar.analyzers.test_mapping import analyze_test_mapping
 from qaradar.config import load_config
-from qaradar.engine import run_healthcheck
+from qaradar.engine import run_healthcheck, run_pr_risk
 from qaradar.models import RiskLevel
 
 mcp = FastMCP(
@@ -97,6 +97,36 @@ class UntestedFilesInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     repo_path: str = Field(default=".", description="Path to the git repository")
+
+
+class PrRiskInput(BaseModel):
+    """Input for PR diff-aware risk analysis."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    repo_path: str = Field(
+        default=".",
+        description="Path to the git repository to analyze (default: current directory)",
+    )
+    base_ref: str | None = Field(
+        default=None,
+        description=(
+            "Base branch or ref to diff against (e.g. 'main', 'origin/main', 'HEAD~3'). "
+            "Auto-detected from GITHUB_BASE_REF env or common branch names if omitted."
+        ),
+    )
+    churn_days: int = Field(
+        default=90,
+        description="Days of git history used for historical churn scoring",
+        ge=7,
+        le=365,
+    )
+    max_results: int = Field(
+        default=50,
+        description="Maximum number of risky files to return",
+        ge=1,
+        le=500,
+    )
 
 
 # --- Tools ---
@@ -290,6 +320,35 @@ async def qaradar_untested_files(params: UntestedFilesInput) -> str:
     )
 
 
+@mcp.tool(
+    name="qaradar_pr_risk",
+    annotations=ToolAnnotations(
+        title="PR Diff Risk Analysis",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def qaradar_pr_risk(params: PrRiskInput) -> str:
+    """Use when the user asks what's risky in this PR, which changed files need review, or which of my changes lack tests.
+
+    Scores only files changed between a base ref and HEAD — not the whole repo.
+    Uses full-repo normalization so risk scores stay calibrated even when only
+    a few files changed. Automatically detects the base branch from git or
+    GITHUB_BASE_REF if base_ref is not specified.
+
+    Returns a JSON report with: risky changed files ranked by risk score,
+    changed files without tests, test files touched, and a headline summary.
+    """
+    report = run_pr_risk(
+        repo_path=params.repo_path,
+        base_ref=params.base_ref,
+        churn_days=params.churn_days,
+    )
+    return _format_pr_risk_report(report, max_results=params.max_results)
+
+
 # --- Helpers ---
 
 
@@ -319,6 +378,38 @@ def _format_report(report) -> str:
             {"path": c.path, "coverage": f"{c.line_rate:.1%}"}
             for c in report.coverage_gaps[:15]
         ],
+    }
+    return json.dumps(output, indent=2)
+
+
+def _format_pr_risk_report(report, max_results: int = 50) -> str:
+    """Format a PrRiskReport as structured JSON for agent consumption."""
+    high_plus = report.critical_count + report.high_count
+    headline = (
+        f"{high_plus} of {report.changed_source_files} changed source files are HIGH+ risk"
+        if report.status == "ok"
+        else "No changes detected relative to base ref"
+    )
+    output = {
+        "summary": report.summary(),
+        "headline": headline,
+        "risky_changed_files": [
+            {
+                "path": r.path,
+                "risk_level": r.risk_level.value,
+                "risk_score": r.risk_score,
+                "reasons": r.reasons,
+                "scores": {
+                    "churn": r.churn_score,
+                    "coverage": r.coverage_score,
+                    "test_mapping": r.test_mapping_score,
+                },
+            }
+            for r in report.risky_changed_files[:max_results]
+        ],
+        "changed_files_without_tests": report.changed_files_without_tests,
+        "changed_test_files": report.changed_test_files,
+        "changed_untracked_by_analyzers": report.changed_untracked_by_analyzers,
     }
     return json.dumps(output, indent=2)
 

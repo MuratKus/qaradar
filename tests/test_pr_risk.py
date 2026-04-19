@@ -1,7 +1,8 @@
-"""Tests for run_pr_risk — diff-aware risk analysis."""
+"""Tests for run_pr_risk — diff-aware risk analysis and MCP tool shape."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ import pytest
 
 from qaradar.engine import run_pr_risk
 from qaradar.models import FileChurn, ModuleRisk, RiskLevel, TestMapping
+from qaradar.server import _format_pr_risk_report
 
 
 # Helpers
@@ -220,3 +222,52 @@ def test_summary_returns_expected_keys(tmp_path):
     s = report.summary()
     for key in ("base_ref", "total_changed_files", "critical_count", "high_plus_count", "status"):
         assert key in s, f"Missing key: {key}"
+
+
+# --- MCP tool JSON shape ---
+
+def test_format_pr_risk_report_json_shape(tmp_path):
+    """The MCP tool formatter must produce valid JSON with expected top-level keys."""
+    repo = _git_repo(tmp_path)
+
+    with (
+        patch("qaradar.engine.resolve_base_ref", return_value="main"),
+        patch("qaradar.engine.fork_point_sha", return_value="abc123"),
+        patch("qaradar.engine.changed_files", return_value=["src/app.py"]),
+        patch("qaradar.engine.analyze_churn", return_value=[]),
+        patch("qaradar.engine.analyze_coverage", return_value=[]),
+        patch("qaradar.engine.analyze_test_mapping", return_value=[]),
+    ):
+        report = run_pr_risk(str(repo), base_ref="main")
+
+    output = _format_pr_risk_report(report)
+    data = json.loads(output)
+
+    for key in ("summary", "headline", "risky_changed_files", "changed_files_without_tests",
+                "changed_test_files", "changed_untracked_by_analyzers"):
+        assert key in data, f"Missing top-level key: {key}"
+
+    assert isinstance(data["risky_changed_files"], list)
+    assert isinstance(data["headline"], str)
+
+
+def test_format_pr_risk_report_max_results(tmp_path):
+    """max_results limits the risky_changed_files list."""
+    repo = _git_repo(tmp_path)
+    many_changed = [f"src/file{i}.py" for i in range(10)]
+    mock_risks = [_make_risk(p, RiskLevel.HIGH) for p in many_changed]
+
+    with (
+        patch("qaradar.engine.resolve_base_ref", return_value="main"),
+        patch("qaradar.engine.fork_point_sha", return_value="abc123"),
+        patch("qaradar.engine.changed_files", return_value=many_changed),
+        patch("qaradar.engine.analyze_churn", return_value=[]),
+        patch("qaradar.engine.analyze_coverage", return_value=[]),
+        patch("qaradar.engine.analyze_test_mapping", return_value=[]),
+        patch("qaradar.engine.score_risks", return_value=mock_risks),
+    ):
+        report = run_pr_risk(str(repo), base_ref="main")
+
+    output = _format_pr_risk_report(report, max_results=3)
+    data = json.loads(output)
+    assert len(data["risky_changed_files"]) == 3
