@@ -58,7 +58,7 @@ uv launches qaradar on demand from PyPI — you don't need to `pip install qarad
 /plugin install qaradar@qaradar-marketplace
 ```
 
-**What you get:** 5 MCP tools auto-configured + 4 slash commands:
+**What you get:** 6 MCP tools auto-configured + 5 slash commands:
 
 | Command | What it does |
 |---------|-------------|
@@ -66,8 +66,9 @@ uv launches qaradar on demand from PyPI — you don't need to `pip install qarad
 | `/qaradar:qa-risky` | Ranked list of riskiest files with reasons |
 | `/qaradar:qa-untested` | Source files with no detected tests + scaffold suggestions |
 | `/qaradar:qa-plan` | Prioritized test plan (chains 3 tools) |
+| `/qaradar:qa-pr-risk` | Which changed files in this PR are riskiest |
 
-**Example:** after merging a big feature branch, run `/qaradar:qa-check` to see what regressed.
+**Example:** after merging a big feature branch, run `/qaradar:qa-check` to see what regressed. Before opening a PR, run `/qaradar:qa-pr-risk` to see what you need to test first.
 
 ## MCP Server (for AI Coding Agents)
 
@@ -102,6 +103,7 @@ Once connected, ask your agent:
 > "Which files are the riskiest right now?"
 > "Show me the highest-churn files from the last month."
 > "Which source files have no tests at all?"
+> "Which of my changed files are risky?" ← diff-aware
 
 ### Available MCP Tools
 
@@ -112,6 +114,28 @@ Once connected, ask your agent:
 | `qaradar_churn` | Hotspot detection; where regressions tend to occur |
 | `qaradar_coverage_gaps` | Files with low coverage; where the blind spots are |
 | `qaradar_untested_files` | Source files with no corresponding test files |
+| `qaradar_pr_risk` | Which changed files in this PR need attention |
+
+### Diff-aware: what's risky in this PR?
+
+`qaradar_pr_risk` scores only the files changed between a base ref and HEAD — not the whole repo. It keeps risk scores calibrated by using full-repo normalization, so a file with 2 commits in a PR isn't falsely flagged CRITICAL just because it's the only changed file the agent knows about.
+
+Ask your agent:
+> "Which of my changed files are risky?"
+> "Do any of the files I changed lack tests?"
+> "What should I review before opening this PR?"
+
+Or from the CLI:
+
+```bash
+# Diff against main — shows only changed files
+qaradar analyze . --base main
+
+# Diff against a specific ref
+qaradar analyze . --base origin/main --days 60
+```
+
+`qaradar_pr_risk` auto-detects the base branch from `GITHUB_BASE_REF` (set automatically in GitHub Actions) or falls back to `main`/`master`. Pass `base_ref` explicitly to override.
 
 ## CLI
 
@@ -127,6 +151,9 @@ qaradar analyze --json-output
 
 # Show top 10 risky modules only
 qaradar analyze --top 10
+
+# Diff-aware: score only files changed since main
+qaradar analyze . --base main
 ```
 
 ## Install
@@ -204,7 +231,7 @@ Java, Kotlin, Ruby, Swift, Rust — test detection via naming conventions, not e
 
 - [x] **v0.1.2** — Claude Code plugin + slash commands
 - [x] **v0.2.0** — Config file (`qaradar.toml`), Tier 2 language validation, hardening
-- [ ] **v0.3.0** — Diff-aware mode: analyze only changed files in a PR
+- [x] **v0.3.0** — Diff-aware mode: `qaradar_pr_risk` + `--base` CLI flag
 - [ ] **v0.4.0** — Flaky test detection from CI history (JUnit XML parsing)
 
 ## Philosophy

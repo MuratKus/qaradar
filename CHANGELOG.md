@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 (2026-04-20)
+
+### Features
+
+- **Diff-aware mode** — new `qaradar_pr_risk` MCP tool and `qaradar analyze --base <ref>` CLI flag score only files changed between a base ref and HEAD. Designed for PR workflows: ask your agent "which of my changed files are risky?" and get a ranked list scoped to the diff.
+- **Auto base-ref detection** — resolves base from `GITHUB_BASE_REF` env (set automatically in GitHub Actions), then `origin/HEAD`, `main`, `master`. Pass `--base` explicitly to override.
+- **`qaradar/git.py` shared helper** — `_git`, `changed_files`, `resolve_base_ref`, and `fork_point_sha` promoted to a shared module; `churn.py` now imports from there. Internal refactor, no user-visible behavior change.
+- **New slash command** — `/qaradar:qa-pr-risk` wraps `qaradar_pr_risk` with a sensible prompt for summarizing PR risk.
+- **`PrRiskReport` model** — new dataclass returned by `run_pr_risk`; includes per-bucket counts, changed test files, changed files without tests, and files untracked by analyzers (`.md`, `.yml`, etc.).
+
+### Correctness
+
+- Risk normalization uses full-repo churn even in diff-aware mode. Pre-filtering churn to only changed files would inflate scores; now the filter happens on the output layer, preserving calibrated scores.
+- Windows path normalization: `TestMapping.source_path` backslashes are converted to POSIX forward slashes before comparing with `git diff --name-only` output.
+
 ## 0.2.0 (2026-04-19)
 
 ### Features
