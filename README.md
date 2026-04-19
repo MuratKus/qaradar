@@ -131,15 +131,23 @@ qaradar analyze --top 10
 
 ## Install
 
-Install from source:
+```bash
+pip install qaradar
+```
+
+Or run without installing:
 
 ```bash
-git clone https://github.com/murat/qaradar.git
+uvx qaradar serve
+```
+
+**From source** (for development):
+
+```bash
+git clone https://github.com/Muratkus/qaradar.git
 cd qaradar
 pip install -e .
 ```
-
-> PyPI release coming in v0.1.2. For now, use the plugin install path above (via `uvx`) or install from source.
 
 ## Language Support
 
@@ -194,12 +202,10 @@ Java, Kotlin, Ruby, Swift, Rust — test detection via naming conventions, not e
 
 ## Roadmap
 
-- [x] **v0.1.2** — Claude Code plugin + slash commands (`/qaradar:qa-check`, `/qaradar:qa-risky`, `/qaradar:qa-untested`, `/qaradar:qa-plan`)
-- [ ] **v0.2** — Diff-aware mode: analyze only changed files in a PR
-- [ ] **v0.3** — CI integration: GitHub Action that posts quality briefs on PRs
-- [ ] **v0.4** — Flaky test detection from CI history (JUnit XML parsing)
-- [ ] **v0.5** — Exploratory charter generation from diff + risk data
-- [ ] **v1.0** — Historical trend tracking and quality regression alerts
+- [x] **v0.1.2** — Claude Code plugin + slash commands
+- [x] **v0.2.0** — Config file (`qaradar.toml`), Tier 2 language validation, hardening
+- [ ] **v0.3.0** — Diff-aware mode: analyze only changed files in a PR
+- [ ] **v0.4.0** — Flaky test detection from CI history (JUnit XML parsing)
 
 ## Philosophy
 

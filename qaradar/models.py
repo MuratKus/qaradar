@@ -88,6 +88,7 @@ class HealthReport:
     avg_coverage: Optional[float] = None
     files_with_tests: int = 0
     files_without_tests: int = 0
+    coverage_status: str = "ok"  # "ok" | "no_report_found"
 
     def summary(self) -> dict:
         """Return a compact summary dict."""
@@ -106,4 +107,5 @@ class HealthReport:
             "high_risk_count": sum(
                 1 for m in self.risky_modules if m.risk_level == RiskLevel.HIGH
             ),
+            "coverage_status": self.coverage_status,
         }

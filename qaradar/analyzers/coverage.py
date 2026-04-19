@@ -10,7 +10,7 @@ from typing import Optional
 from qaradar.models import CoverageEntry
 
 
-def analyze_coverage(repo_path: str) -> list[CoverageEntry]:
+def analyze_coverage(repo_path: str, explicit_path: Optional[str] = None) -> list[CoverageEntry]:
     """Auto-detect and parse coverage reports in the repo.
 
     Supports:
@@ -19,26 +19,48 @@ def analyze_coverage(repo_path: str) -> list[CoverageEntry]:
     - lcov (coverage.lcov, lcov.info)
     - Go cover profile (cover.out, coverage.out)
 
+    If explicit_path is given it takes precedence over auto-discovery.
     Returns files sorted by line_rate ascending (worst coverage first).
     """
     repo = Path(repo_path).resolve()
     entries: list[CoverageEntry] = []
 
-    # Try each format in order of preference
-    for finder in [_find_coverage_json, _find_cobertura_xml, _find_lcov, _find_go_cover]:
-        found = finder(repo)
-        if found:
-            entries = found
-            break
+    if explicit_path:
+        p = Path(explicit_path)
+        if not p.is_absolute():
+            p = repo / p
+        if p.exists():
+            entries = _parse_by_extension(p)
+    else:
+        for finder in [_find_coverage_json, _find_cobertura_xml, _find_lcov, _find_go_cover]:
+            found = finder(repo)
+            if found:
+                entries = found
+                break
 
     entries.sort(key=lambda e: e.line_rate)
     return entries
+
+
+def _parse_by_extension(path: Path) -> list[CoverageEntry]:
+    """Dispatch to the right parser based on file name/extension."""
+    name = path.name
+    if name.endswith(".json"):
+        return _parse_coverage_json(path)
+    if name.endswith(".xml"):
+        return _parse_cobertura_xml(path)
+    if name.endswith(".info") or name.endswith(".lcov"):
+        return _parse_lcov(path)
+    if name in ("cover.out", "coverage.out", "c.out"):
+        return _parse_go_cover(path)
+    return []
 
 
 def _find_coverage_json(repo: Path) -> Optional[list[CoverageEntry]]:
     """Parse coverage.py JSON format."""
     candidates = [
         repo / "coverage.json",
+        repo / "coverage" / "coverage.json",
         repo / ".coverage.json",
         repo / "htmlcov" / "status.json",
     ]
@@ -83,9 +105,11 @@ def _find_cobertura_xml(repo: Path) -> Optional[list[CoverageEntry]]:
     """Find and parse Cobertura/coverage.py XML."""
     candidates = [
         repo / "coverage.xml",
+        repo / "coverage" / "coverage.xml",
         repo / "cobertura.xml",
         repo / "test-results" / "coverage.xml",
         repo / "reports" / "coverage.xml",
+        repo / "build" / "reports" / "coverage.xml",
     ]
     for path in candidates:
         if path.exists():

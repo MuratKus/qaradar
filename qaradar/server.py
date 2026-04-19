@@ -12,6 +12,7 @@ from qaradar.analyzers.churn import analyze_churn
 from qaradar.analyzers.coverage import analyze_coverage
 from qaradar.analyzers.risk import score_risks
 from qaradar.analyzers.test_mapping import analyze_test_mapping
+from qaradar.config import load_config
 from qaradar.engine import run_healthcheck
 from qaradar.models import RiskLevel
 
@@ -146,11 +147,12 @@ async def qaradar_risky_modules(params: RiskyModulesInput) -> str:
     so the most critical files appear first.
     """
     risk_levels = _parse_min_risk(params.min_risk)
+    cfg = load_config(params.repo_path)
 
-    churn = analyze_churn(params.repo_path, days=params.churn_days)
-    coverage = analyze_coverage(params.repo_path)
-    mappings = analyze_test_mapping(params.repo_path)
-    risks = score_risks(churn, coverage, mappings)
+    churn = analyze_churn(params.repo_path, days=params.churn_days, excludes=cfg.excludes.patterns or None)
+    coverage = analyze_coverage(params.repo_path, explicit_path=cfg.paths.coverage_file)
+    mappings = analyze_test_mapping(params.repo_path, excludes=cfg.excludes.patterns or None)
+    risks = score_risks(churn, coverage, mappings, weights=cfg.weights)
 
     filtered = [r for r in risks if r.risk_level in risk_levels]
 
@@ -188,7 +190,8 @@ async def qaradar_churn(params: ChurnInput) -> str:
     Analyzes git history to find frequently changed files — high-churn files
     are more likely to contain regressions and deserve stronger test coverage.
     """
-    churn = analyze_churn(params.repo_path, days=params.days)
+    cfg = load_config(params.repo_path)
+    churn = analyze_churn(params.repo_path, days=params.days, excludes=cfg.excludes.patterns or None)
 
     items = []
     for c in churn[: params.limit]:
@@ -222,7 +225,8 @@ async def qaradar_coverage_gaps(params: CoverageInput) -> str:
     Parses coverage reports (coverage.py JSON/XML, Cobertura, LCOV, Go cover profile)
     and returns files sorted by coverage ascending — worst-covered files first.
     """
-    coverage = analyze_coverage(params.repo_path)
+    cfg = load_config(params.repo_path)
+    coverage = analyze_coverage(params.repo_path, explicit_path=cfg.paths.coverage_file)
     gaps = [c for c in coverage if c.line_rate < params.threshold]
 
     items = []
@@ -263,7 +267,8 @@ async def qaradar_untested_files(params: UntestedFilesInput) -> str:
     Detects source files with no corresponding test files using naming
     conventions across Python, JS/TS, Go, Java, Kotlin, Ruby, Swift, and Rust.
     """
-    mappings = analyze_test_mapping(params.repo_path)
+    cfg = load_config(params.repo_path)
+    mappings = analyze_test_mapping(params.repo_path, excludes=cfg.excludes.patterns or None)
 
     untested = [m for m in mappings if not m.has_tests]
     tested = [m for m in mappings if m.has_tests]

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C C:/Users/Murat/Projects/qaradar check-ignore -q .worktrees)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(git -C C:/Users/Murat/Projects/qaradar add .gitignore)",
+      "Bash(git -C C:/Users/Murat/Projects/qaradar commit -m \"chore: add .worktrees to gitignore\")",
+      "Bash(git *)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(ruff check *)",
+      "Bash(mypy qaradar *)",
+      "Bash(qaradar analyze *)",
+      "Bash(twine check *)",
+      "Bash(qaradar --version)"
+    ]
+  }
+}

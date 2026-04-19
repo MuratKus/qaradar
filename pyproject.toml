@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qaradar"
-version = "0.1.2"
+version = "0.2.0"
 description = "QA Radar — give your AI coding agent the quality brain it doesn't have to grow from scratch."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,7 @@ dependencies = [
     "pydantic>=2.0",
     "click>=8.0",
     "rich>=13.0",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,8 @@ qaradar = "qaradar.cli:main"
 [project.urls]
 Homepage = "https://github.com/Muratkus/qaradar"
 Repository = "https://github.com/Muratkus/qaradar"
+Changelog = "https://github.com/Muratkus/qaradar/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Muratkus/qaradar/issues"
 
 [tool.pytest.ini_options]
 norecursedirs = ["tests/fixtures", ".worktrees", "dist", "build"]

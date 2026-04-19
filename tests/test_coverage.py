@@ -161,3 +161,34 @@ def test_analyze_coverage_go_fixture(go_app):
 def test_analyze_coverage_empty_repo(tmp_path):
     entries = analyze_coverage(str(tmp_path))
     assert entries == []
+
+
+def test_analyze_coverage_finds_xml_in_coverage_subdir(tmp_path):
+    subdir = tmp_path / "coverage"
+    subdir.mkdir()
+    (subdir / "coverage.xml").write_text(COBERTURA_XML)
+    entries = analyze_coverage(str(tmp_path))
+    assert len(entries) == 1
+    assert entries[0].path == "src/app.py"
+
+
+def test_analyze_coverage_finds_json_in_coverage_subdir(tmp_path):
+    subdir = tmp_path / "coverage"
+    subdir.mkdir()
+    (subdir / "coverage.json").write_text(
+        '{"files": {"src/x.py": {"summary": {"covered_lines": 5, "missing_lines": 5}}}}'
+    )
+    entries = analyze_coverage(str(tmp_path))
+    assert len(entries) == 1
+    assert entries[0].line_rate == pytest.approx(0.5)
+
+
+def test_analyze_coverage_explicit_path_wins(tmp_path):
+    (tmp_path / "coverage.json").write_text(
+        '{"files": {"wrong.py": {"summary": {"covered_lines": 1, "missing_lines": 9}}}}'
+    )
+    xml_path = tmp_path / "custom_coverage.xml"
+    xml_path.write_text(COBERTURA_XML)
+    entries = analyze_coverage(str(tmp_path), explicit_path=str(xml_path))
+    assert len(entries) == 1
+    assert entries[0].path == "src/app.py"

@@ -126,3 +126,23 @@ def test_score_risks_no_tests_is_critical():
     # No coverage data (0.7) + no tests (1.0) + no churn (0.3)
     # = 0.35*0.3 + 0.35*0.7 + 0.30*1.0 = 0.105 + 0.245 + 0.3 = 0.65 → HIGH
     assert results[0].risk_level in {RiskLevel.HIGH, RiskLevel.CRITICAL}
+
+
+def test_score_risks_custom_weights_pure_test_mapping():
+    from qaradar.config import WeightsConfig
+    mappings = [TestMapping("a.py", has_tests=False)]
+    weights = WeightsConfig(churn=0.0, coverage=0.0, test_mapping=1.0)
+    results = score_risks([], [], mappings, weights=weights)
+    # test_mapping_score for no tests = 1.0; weight = 1.0; total = 1.0
+    assert results[0].risk_score == pytest.approx(1.0)
+
+
+def test_score_risks_custom_weights_zero_test_mapping():
+    from qaradar.config import WeightsConfig
+    mappings = [TestMapping("a.py", has_tests=False)]
+    # With zero test_mapping weight, no-test penalty disappears
+    weights = WeightsConfig(churn=0.5, coverage=0.5, test_mapping=0.0)
+    results = score_risks([], [], mappings, weights=weights)
+    # Only churn (0.3) and coverage (0.7) contribute
+    # 0.5 * 0.3 + 0.5 * 0.7 = 0.15 + 0.35 = 0.5
+    assert results[0].risk_score == pytest.approx(0.5)

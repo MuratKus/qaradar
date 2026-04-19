@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import re
 from pathlib import Path
 
@@ -45,7 +46,7 @@ SKIP_DIRS = {
 }
 
 
-def analyze_test_mapping(repo_path: str) -> list[TestMapping]:
+def analyze_test_mapping(repo_path: str, excludes: list[str] | None = None) -> list[TestMapping]:
     """Map source files to their test files.
 
     Uses naming conventions and directory structure to infer relationships.
@@ -58,6 +59,8 @@ def analyze_test_mapping(repo_path: str) -> list[TestMapping]:
 
     for path in _walk_files(repo):
         rel = path.relative_to(repo)
+        if excludes and _matches_excludes(rel, excludes):
+            continue
         if _is_test_file(rel):
             test_files.append(rel)
         elif _is_source_file(rel):
@@ -170,6 +173,23 @@ def _find_tests_for_source(source: Path, test_files: list[Path]) -> list[Path]:
                 matches.append(test)
                 continue
 
+        # Rust: foo.rs → foo_test.rs (direct), or any .rs in sibling tests/ dir
+        if ext == ".rs":
+            if test_name == f"{stem}_test.rs":
+                matches.append(test)
+                continue
+            # Integration tests: tests/ is a sibling to src/ in the same package
+            src_parts = list(source.parts)
+            test_parts = list(test.parts)
+            if "src" in src_parts:
+                src_idx = src_parts.index("src")
+                pkg_prefix = src_parts[:src_idx]
+                if (len(test_parts) > src_idx
+                        and test_parts[:src_idx] == pkg_prefix
+                        and test_parts[src_idx] == "tests"):
+                    matches.append(test)
+                    continue
+
     return matches
 
 
@@ -203,6 +223,20 @@ def _count_test_functions(test_path: Path) -> int:
             count += 1
 
     return count
+
+
+def _matches_excludes(rel_path: Path, excludes: list[str]) -> bool:
+    """Return True if rel_path matches any exclude glob pattern."""
+    path_str = rel_path.as_posix()
+    for pattern in excludes:
+        if fnmatch.fnmatch(path_str, pattern):
+            return True
+        # Also match if any parent dir prefix matches
+        if fnmatch.fnmatch(rel_path.parts[0] + "/", pattern.split("/")[0] + "/"):
+            prefix = pattern.split("/")[0]
+            if rel_path.parts[0] == prefix:
+                return True
+    return False
 
 
 def get_file_counts(repo_path: str) -> tuple[int, int]:

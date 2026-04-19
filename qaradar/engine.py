@@ -8,6 +8,7 @@ from qaradar.analyzers.churn import analyze_churn
 from qaradar.analyzers.coverage import analyze_coverage
 from qaradar.analyzers.risk import score_risks
 from qaradar.analyzers.test_mapping import analyze_test_mapping, get_file_counts
+from qaradar.config import QaradarConfig, load_config
 from qaradar.models import HealthReport, RiskLevel
 
 
@@ -15,6 +16,7 @@ def run_healthcheck(
     repo_path: str,
     churn_days: int = 90,
     top_n: int = 20,
+    config: QaradarConfig | None = None,
 ) -> HealthReport:
     """Run a full QA health check on a repository.
 
@@ -26,21 +28,29 @@ def run_healthcheck(
     Returns:
         A complete HealthReport with risk assessments.
     """
+    if config is None:
+        config = load_config(repo_path)
+
+    excludes = config.excludes.patterns or None
+    explicit_coverage = config.paths.coverage_file
+
     # Run individual analyzers
-    churn_data = analyze_churn(repo_path, days=churn_days)
-    coverage_data = analyze_coverage(repo_path)
-    test_mappings = analyze_test_mapping(repo_path)
+    churn_data = analyze_churn(repo_path, days=churn_days, excludes=excludes)
+    coverage_data = analyze_coverage(repo_path, explicit_path=explicit_coverage)
+    test_mappings = analyze_test_mapping(repo_path, excludes=excludes)
 
     # Combine into risk scores
-    all_risks = score_risks(churn_data, coverage_data, test_mappings)
+    all_risks = score_risks(churn_data, coverage_data, test_mappings, weights=config.weights)
 
     # File counts
     source_count, test_count = get_file_counts(repo_path)
 
     # Compute summary stats
     avg_coverage = None
+    coverage_status = "no_report_found"
     if coverage_data:
         avg_coverage = sum(c.line_rate for c in coverage_data) / len(coverage_data)
+        coverage_status = "ok"
 
     files_with_tests = sum(1 for m in test_mappings if m.has_tests)
     files_without_tests = sum(1 for m in test_mappings if not m.has_tests)
@@ -75,4 +85,5 @@ def run_healthcheck(
         avg_coverage=avg_coverage,
         files_with_tests=files_with_tests,
         files_without_tests=files_without_tests,
+        coverage_status=coverage_status,
     )

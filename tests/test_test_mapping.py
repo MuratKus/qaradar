@@ -149,3 +149,42 @@ def test_analyze_go_fixture(go_app):
     math_key = next((k for k in by_source if "math.go" in k), None)
     assert math_key is not None
     assert by_source[math_key].has_tests is True
+
+
+def test_analyze_rust_integration_tests_in_tests_dir(tmp_path):
+    """Rust source files in src/ are matched to integration tests in sibling tests/ dir."""
+    pkg = tmp_path / "mylib"
+    (pkg / "src").mkdir(parents=True)
+    (pkg / "src" / "lib.rs").write_text("pub fn hello() {}")
+    (pkg / "src" / "utils.rs").write_text("pub fn util() {}")
+    (pkg / "tests").mkdir()
+    (pkg / "tests" / "integration.rs").write_text("#[test]\nfn test_hello() {}")
+
+    mappings = analyze_test_mapping(str(tmp_path))
+    by_source = {m.source_path: m for m in mappings}
+
+    lib_key = next((k for k in by_source if "lib.rs" in k), None)
+    assert lib_key is not None, "lib.rs not found in mappings"
+    assert by_source[lib_key].has_tests is True
+
+    utils_key = next((k for k in by_source if "utils.rs" in k), None)
+    assert utils_key is not None, "utils.rs not found in mappings"
+    assert by_source[utils_key].has_tests is True
+
+
+def test_analyze_test_mapping_excludes_custom_dirs(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("def foo(): pass")
+    gen_dir = tmp_path / "generated"
+    gen_dir.mkdir()
+    (gen_dir / "schema.py").write_text("x = 1")
+
+    all_mappings = analyze_test_mapping(str(tmp_path))
+    all_paths = {m.source_path for m in all_mappings}
+    assert any("app.py" in p for p in all_paths)
+    assert any("schema.py" in p for p in all_paths)
+
+    filtered = analyze_test_mapping(str(tmp_path), excludes=["generated/**"])
+    filtered_paths = {m.source_path for m in filtered}
+    assert any("app.py" in p for p in filtered_paths)
+    assert not any("schema.py" in p for p in filtered_paths)

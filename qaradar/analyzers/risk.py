@@ -19,6 +19,7 @@ def score_risks(
     churn_data: list[FileChurn],
     coverage_data: list[CoverageEntry],
     test_mappings: list[TestMapping],
+    weights=None,
 ) -> list[ModuleRisk]:
     """Combine all signals into per-file risk assessments.
 
@@ -29,6 +30,10 @@ def score_risks(
 
     Returns modules sorted by risk_score descending (riskiest first).
     """
+    if weights is None:
+        from qaradar.config import WeightsConfig
+        weights = WeightsConfig()
+
     # Index data by path for fast lookup
     churn_by_path = {c.path: c for c in churn_data}
     coverage_by_path = {c.path: c for c in coverage_data}
@@ -57,9 +62,9 @@ def score_risks(
 
         # Weighted combination
         risk_score = (
-            0.35 * churn_score
-            + 0.35 * coverage_score
-            + 0.30 * test_map_score
+            weights.churn * churn_score
+            + weights.coverage * coverage_score
+            + weights.test_mapping * test_map_score
         )
 
         reasons = _build_reasons(churn, coverage, test_map, churn_score, coverage_score, test_map_score)

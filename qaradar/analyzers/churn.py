@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fnmatch
+import shutil
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -14,11 +16,15 @@ def analyze_churn(
     repo_path: str,
     days: int = 90,
     extensions: tuple[str, ...] = (".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".kt", ".swift", ".rb", ".go", ".rs"),
+    excludes: list[str] | None = None,
 ) -> list[FileChurn]:
     """Analyze git history for file churn over the given period.
 
     Returns files sorted by commit count (descending).
     """
+    if shutil.which("git") is None:
+        raise RuntimeError("git not found in PATH — install git and retry")
+
     repo = Path(repo_path).resolve()
     if not (repo / ".git").exists():
         raise ValueError(f"Not a git repository: {repo}")
@@ -101,6 +107,10 @@ def analyze_churn(
     for filepath, stats in file_stats.items():
         # Only include files that still exist
         if not (repo / filepath).exists():
+            continue
+
+        # Apply excludes
+        if excludes and any(fnmatch.fnmatch(filepath, pattern) for pattern in excludes):
             continue
 
         results.append(
