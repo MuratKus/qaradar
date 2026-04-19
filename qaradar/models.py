@@ -109,3 +109,47 @@ class HealthReport:
             ),
             "coverage_status": self.coverage_status,
         }
+
+
+@dataclass
+class PrRiskReport:
+    """Risk report scoped to files changed in a PR / branch diff."""
+
+    repo_path: str
+    analyzed_at: str
+    base_ref: str
+    head_ref: str
+    fork_point_sha: str
+
+    total_changed_files: int
+    changed_source_files: int
+    changed_test_files: list[str] = field(default_factory=list)
+    changed_untracked_by_analyzers: list[str] = field(default_factory=list)
+
+    risky_changed_files: list[ModuleRisk] = field(default_factory=list)
+    changed_files_without_tests: list[str] = field(default_factory=list)
+
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    status: str = "ok"  # "ok" | "no_changes"
+
+    def summary(self) -> dict:
+        """Return a compact summary dict."""
+        high_plus = self.critical_count + self.high_count
+        return {
+            "repo": self.repo_path,
+            "analyzed_at": self.analyzed_at,
+            "base_ref": self.base_ref,
+            "head_ref": self.head_ref,
+            "total_changed_files": self.total_changed_files,
+            "changed_source_files": self.changed_source_files,
+            "critical_count": self.critical_count,
+            "high_count": self.high_count,
+            "medium_count": self.medium_count,
+            "low_count": self.low_count,
+            "high_plus_count": high_plus,
+            "files_without_tests": len(self.changed_files_without_tests),
+            "status": self.status,
+        }
