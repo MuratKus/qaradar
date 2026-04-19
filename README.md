@@ -33,9 +33,47 @@ A capable agent with bash access could run `git log --numstat`, parse `coverage.
 | **Convention encoding** | `test_x.py` for Python, `x.test.ts` for JS/TS, `x_test.go` for Go, `FooTest.java` for Java — encoded once, not re-derived each session. |
 | **Portability** | The same MCP tools work across Claude Code, Cursor, and Windsurf without re-prompting. |
 
+## Install as Claude Code Plugin (Recommended)
+
+The fastest path — one command wires up the MCP server and installs 4 slash commands. No manual config editing.
+
+**Step 0 — install uv** (if you don't have it):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# or: pip install uv
+```
+
+uv launches qaradar on demand from PyPI — you don't need to `pip install qaradar` separately.
+
+**Step 1 — add the marketplace:**
+
+```
+/plugin marketplace add Muratkus/qaradar
+```
+
+**Step 2 — install:**
+
+```
+/plugin install qaradar@qaradar-marketplace
+```
+
+**What you get:** 5 MCP tools auto-configured + 4 slash commands:
+
+| Command | What it does |
+|---------|-------------|
+| `/qaradar:qa-check` | Full health report — risk, coverage, untested files |
+| `/qaradar:qa-risky` | Ranked list of riskiest files with reasons |
+| `/qaradar:qa-untested` | Source files with no detected tests + scaffold suggestions |
+| `/qaradar:qa-plan` | Prioritized test plan (chains 3 tools) |
+
+**Example:** after merging a big feature branch, run `/qaradar:qa-check` to see what regressed.
+
 ## MCP Server (for AI Coding Agents)
 
 ### Setup
+
+**Alternative: manual MCP config** (if you prefer not to use the plugin):
 
 Add to your Claude Code config (`~/.claude/claude_desktop_config.json`):
 
@@ -43,8 +81,8 @@ Add to your Claude Code config (`~/.claude/claude_desktop_config.json`):
 {
   "mcpServers": {
     "qaradar": {
-      "command": "qaradar",
-      "args": ["serve"]
+      "command": "uvx",
+      "args": ["qaradar", "serve"]
     }
   }
 }
@@ -53,7 +91,7 @@ Add to your Claude Code config (`~/.claude/claude_desktop_config.json`):
 Or start it manually:
 
 ```bash
-qaradar serve
+uvx qaradar serve
 ```
 
 ### Example Prompts
@@ -101,7 +139,7 @@ cd qaradar
 pip install -e .
 ```
 
-> PyPI release coming in v0.1.1.
+> PyPI release coming in v0.1.2. For now, use the plugin install path above (via `uvx`) or install from source.
 
 ## Language Support
 
@@ -156,7 +194,7 @@ Java, Kotlin, Ruby, Swift, Rust — test detection via naming conventions, not e
 
 ## Roadmap
 
-- [ ] **v0.1.2** — Claude Code plugin + slash commands (`/qa-check`, `/qa-untested`)
+- [x] **v0.1.2** — Claude Code plugin + slash commands (`/qaradar:qa-check`, `/qaradar:qa-risky`, `/qaradar:qa-untested`, `/qaradar:qa-plan`)
 - [ ] **v0.2** — Diff-aware mode: analyze only changed files in a PR
 - [ ] **v0.3** — CI integration: GitHub Action that posts quality briefs on PRs
 - [ ] **v0.4** — Flaky test detection from CI history (JUnit XML parsing)

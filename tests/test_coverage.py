@@ -1,6 +1,5 @@
 """Tests for analyzers/coverage.py — all four formats."""
 
-from pathlib import Path
 
 import pytest
 

@@ -4,8 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from qaradar.analyzers.churn import analyze_churn, _git
-from qaradar.models import FileChurn
+from qaradar.analyzers.churn import analyze_churn
 
 
 SAMPLE_GIT_LOG = """\

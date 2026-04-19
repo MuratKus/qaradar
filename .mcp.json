@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "qaradar": {
+      "command": "uvx",
+      "args": ["qaradar", "serve"],
+      "env": { "PYTHONUNBUFFERED": "1" }
+    }
+  }
+}

@@ -7,7 +7,6 @@ from qaradar.analyzers.risk import (
     _compute_churn_score,
     _compute_coverage_score,
     _compute_test_mapping_score,
-    _build_reasons,
     score_risks,
 )
 from qaradar.models import FileChurn, CoverageEntry, TestMapping, RiskLevel

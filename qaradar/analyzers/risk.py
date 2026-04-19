@@ -35,7 +35,7 @@ def score_risks(
     test_map_by_path = {t.source_path: t for t in test_mappings}
 
     # Collect all known source file paths (exclude test files)
-    all_paths = set()
+    all_paths: set[str] = set()
     all_paths.update(churn_by_path.keys())
     all_paths.update(coverage_by_path.keys())
     all_paths.update(test_map_by_path.keys())

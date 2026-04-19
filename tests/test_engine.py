@@ -2,10 +2,8 @@
 
 from unittest.mock import patch
 
-import pytest
 
 from qaradar.engine import run_healthcheck
-from qaradar.models import RiskLevel
 
 
 def _no_churn(repo_path, days=90):

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from qaradar.analyzers.churn import analyze_churn
@@ -103,13 +103,13 @@ class UntestedFilesInput(BaseModel):
 
 @mcp.tool(
     name="qaradar_healthcheck",
-    annotations={
-        "title": "QA Health Check",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    },
+    annotations=ToolAnnotations(
+        title="QA Health Check",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
 )
 async def qaradar_healthcheck(params: HealthcheckInput) -> str:
     """Use when the user wants a full quality overview or asks 'what's the health of this repo?'.
@@ -130,13 +130,13 @@ async def qaradar_healthcheck(params: HealthcheckInput) -> str:
 
 @mcp.tool(
     name="qaradar_risky_modules",
-    annotations={
-        "title": "Find Risky Modules",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    },
+    annotations=ToolAnnotations(
+        title="Find Risky Modules",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
 )
 async def qaradar_risky_modules(params: RiskyModulesInput) -> str:
     """Use when the user asks what to test first, which files are riskiest, or where regressions are likely.
@@ -174,13 +174,13 @@ async def qaradar_risky_modules(params: RiskyModulesInput) -> str:
 
 @mcp.tool(
     name="qaradar_churn",
-    annotations={
-        "title": "Analyze Code Churn",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    },
+    annotations=ToolAnnotations(
+        title="Analyze Code Churn",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
 )
 async def qaradar_churn(params: ChurnInput) -> str:
     """Use when the user asks which files change most often, what the hotspots are, or where regressions tend to occur.
@@ -208,13 +208,13 @@ async def qaradar_churn(params: ChurnInput) -> str:
 
 @mcp.tool(
     name="qaradar_coverage_gaps",
-    annotations={
-        "title": "Find Coverage Gaps",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    },
+    annotations=ToolAnnotations(
+        title="Find Coverage Gaps",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
 )
 async def qaradar_coverage_gaps(params: CoverageInput) -> str:
     """Use when the user asks which files have low coverage, where the blind spots are, or wants to improve test coverage.
@@ -249,13 +249,13 @@ async def qaradar_coverage_gaps(params: CoverageInput) -> str:
 
 @mcp.tool(
     name="qaradar_untested_files",
-    annotations={
-        "title": "Find Untested Files",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    },
+    annotations=ToolAnnotations(
+        title="Find Untested Files",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
 )
 async def qaradar_untested_files(params: UntestedFilesInput) -> str:
     """Use when the user asks which files have no tests, what's completely uncovered, or wants to find testing blind spots.

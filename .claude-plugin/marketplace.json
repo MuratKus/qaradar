@@ -1,0 +1,12 @@
+{
+  "name": "qaradar-marketplace",
+  "owner": { "name": "Murat" },
+  "plugins": [
+    {
+      "name": "qaradar",
+      "source": ".",
+      "description": "QA brain for AI coding agents",
+      "version": "0.1.2"
+    }
+  ]
+}
