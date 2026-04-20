@@ -43,6 +43,8 @@ SKIP_DIRS = {
     "node_modules", ".git", "__pycache__", ".venv", "venv",
     "env", ".tox", ".mypy_cache", ".pytest_cache", "dist",
     "build", ".next", ".nuxt", "vendor", "target",
+    # Sample/demo code — real source that intentionally lacks tests
+    "examples", "cookbook", "cookbooks", "samples", "demo", "demos",
 }
 
 
@@ -74,8 +76,8 @@ def analyze_test_mapping(repo_path: str, excludes: list[str] | None = None) -> l
 
         mappings.append(
             TestMapping(
-                source_path=str(source),
-                test_paths=[str(t) for t in matched_tests],
+                source_path=source.as_posix(),
+                test_paths=[t.as_posix() for t in matched_tests],
                 has_tests=len(matched_tests) > 0,
                 test_count=test_count,
             )

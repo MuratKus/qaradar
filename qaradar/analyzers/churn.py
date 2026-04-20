@@ -42,7 +42,7 @@ def analyze_churn(
         "--numstat",
     )
 
-    if not log_output.strip():
+    if not (log_output or "").strip():
         return []
 
     file_stats: dict[str, dict] = defaultdict(

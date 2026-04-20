@@ -172,6 +172,22 @@ def test_analyze_rust_integration_tests_in_tests_dir(tmp_path):
     assert by_source[utils_key].has_tests is True
 
 
+def test_skip_dirs_excludes_sample_directories(tmp_path):
+    # cookbook, examples, demo etc. should be ignored without any user config
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "core.py").write_text("def foo(): pass")
+    for sample_dir in ("cookbook", "examples", "samples", "demo", "demos"):
+        d = tmp_path / sample_dir
+        d.mkdir()
+        (d / "sample.py").write_text("# example code")
+
+    mappings = analyze_test_mapping(str(tmp_path))
+    paths = {m.source_path for m in mappings}
+
+    assert any("core.py" in p for p in paths)
+    assert not any("sample.py" in p for p in paths)
+
+
 def test_analyze_test_mapping_excludes_custom_dirs(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "app.py").write_text("def foo(): pass")

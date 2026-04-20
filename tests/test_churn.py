@@ -83,3 +83,13 @@ def test_analyze_churn_empty_git_output(tmp_path):
 def test_analyze_churn_requires_git_repo(tmp_path):
     with pytest.raises(ValueError, match="Not a git repository"):
         analyze_churn(str(tmp_path))
+
+
+def test_analyze_churn_handles_none_git_output(tmp_path):
+    # _git() can return None if subprocess encoding fails (e.g. Windows cp1252 + unicode in commit messages)
+    (tmp_path / ".git").mkdir()
+
+    with patch("qaradar.analyzers.churn._git", return_value=None):
+        results = analyze_churn(str(tmp_path))
+
+    assert results == []

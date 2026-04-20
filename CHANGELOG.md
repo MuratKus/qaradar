@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 (2026-04-20)
+
+### Bug fixes
+
+- **Windows encoding crash** — `_git()` now uses `encoding="utf-8", errors="replace"` instead of the system default (cp1252 on Windows). Repos with emoji or non-ASCII characters in commit messages or author names no longer crash `analyze_churn`. Discovered during OSS validation against `browser-use`.
+- **Duplicate risk entries on Windows** — `TestMapping.source_path` is now stored as a POSIX path (`source.as_posix()`). Previously, Windows backslash paths from test_mapping and forward-slash paths from git churn were treated as different files in `score_risks`, producing duplicate entries and inflated risk counts in PR reports.
+- **Null guard in churn analyzer** — `analyze_churn` now handles a `None` return from `_git()` gracefully instead of raising `AttributeError`.
+- **Sample directories excluded by default** — `examples`, `cookbook`, `cookbooks`, `samples`, `demo`, `demos` are now in `SKIP_DIRS` and excluded from source file discovery without needing a `qaradar.toml`. Fixes inflated untested counts on repos like `agno` (1928 → 462 untested after excluding `cookbook/`).
+
 ## 0.3.0 (2026-04-20)
 
 ### Features
