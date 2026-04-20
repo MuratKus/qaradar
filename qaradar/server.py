@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import anyio
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
@@ -151,10 +152,12 @@ async def qaradar_healthcheck(params: HealthcheckInput) -> str:
     Returns a JSON report with: summary stats, risky modules ranked by
     risk score, untested files, high-churn files, and coverage gaps.
     """
-    report = run_healthcheck(
-        repo_path=params.repo_path,
-        churn_days=params.churn_days,
-        top_n=params.top_n,
+    report = await anyio.to_thread.run_sync(
+        lambda: run_healthcheck(
+            repo_path=params.repo_path,
+            churn_days=params.churn_days,
+            top_n=params.top_n,
+        )
     )
     return _format_report(report)
 
@@ -177,13 +180,15 @@ async def qaradar_risky_modules(params: RiskyModulesInput) -> str:
     so the most critical files appear first.
     """
     risk_levels = _parse_min_risk(params.min_risk)
-    cfg = load_config(params.repo_path)
 
-    churn = analyze_churn(params.repo_path, days=params.churn_days, excludes=cfg.excludes.patterns or None)
-    coverage = analyze_coverage(params.repo_path, explicit_path=cfg.paths.coverage_file)
-    mappings = analyze_test_mapping(params.repo_path, excludes=cfg.excludes.patterns or None)
-    risks = score_risks(churn, coverage, mappings, weights=cfg.weights)
+    def _compute():
+        cfg = load_config(params.repo_path)
+        churn = analyze_churn(params.repo_path, days=params.churn_days, excludes=cfg.excludes.patterns or None)
+        coverage = analyze_coverage(params.repo_path, explicit_path=cfg.paths.coverage_file)
+        mappings = analyze_test_mapping(params.repo_path, excludes=cfg.excludes.patterns or None)
+        return score_risks(churn, coverage, mappings, weights=cfg.weights)
 
+    risks = await anyio.to_thread.run_sync(_compute)
     filtered = [r for r in risks if r.risk_level in risk_levels]
 
     items = []
@@ -220,9 +225,11 @@ async def qaradar_churn(params: ChurnInput) -> str:
     Analyzes git history to find frequently changed files — high-churn files
     are more likely to contain regressions and deserve stronger test coverage.
     """
-    cfg = load_config(params.repo_path)
-    churn = analyze_churn(params.repo_path, days=params.days, excludes=cfg.excludes.patterns or None)
+    def _compute():
+        cfg = load_config(params.repo_path)
+        return analyze_churn(params.repo_path, days=params.days, excludes=cfg.excludes.patterns or None)
 
+    churn = await anyio.to_thread.run_sync(_compute)
     items = []
     for c in churn[: params.limit]:
         items.append(
@@ -255,8 +262,11 @@ async def qaradar_coverage_gaps(params: CoverageInput) -> str:
     Parses coverage reports (coverage.py JSON/XML, Cobertura, LCOV, Go cover profile)
     and returns files sorted by coverage ascending — worst-covered files first.
     """
-    cfg = load_config(params.repo_path)
-    coverage = analyze_coverage(params.repo_path, explicit_path=cfg.paths.coverage_file)
+    def _compute():
+        cfg = load_config(params.repo_path)
+        return analyze_coverage(params.repo_path, explicit_path=cfg.paths.coverage_file)
+
+    coverage = await anyio.to_thread.run_sync(_compute)
     gaps = [c for c in coverage if c.line_rate < params.threshold]
 
     items = []
@@ -297,9 +307,11 @@ async def qaradar_untested_files(params: UntestedFilesInput) -> str:
     Detects source files with no corresponding test files using naming
     conventions across Python, JS/TS, Go, Java, Kotlin, Ruby, Swift, and Rust.
     """
-    cfg = load_config(params.repo_path)
-    mappings = analyze_test_mapping(params.repo_path, excludes=cfg.excludes.patterns or None)
+    def _compute():
+        cfg = load_config(params.repo_path)
+        return analyze_test_mapping(params.repo_path, excludes=cfg.excludes.patterns or None)
 
+    mappings = await anyio.to_thread.run_sync(_compute)
     untested = [m for m in mappings if not m.has_tests]
     tested = [m for m in mappings if m.has_tests]
 
@@ -341,10 +353,12 @@ async def qaradar_pr_risk(params: PrRiskInput) -> str:
     Returns a JSON report with: risky changed files ranked by risk score,
     changed files without tests, test files touched, and a headline summary.
     """
-    report = run_pr_risk(
-        repo_path=params.repo_path,
-        base_ref=params.base_ref,
-        churn_days=params.churn_days,
+    report = await anyio.to_thread.run_sync(
+        lambda: run_pr_risk(
+            repo_path=params.repo_path,
+            base_ref=params.base_ref,
+            churn_days=params.churn_days,
+        )
     )
     return _format_pr_risk_report(report, max_results=params.max_results)
 

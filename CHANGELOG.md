@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 (2026-04-20)
+
+### Bug fixes
+
+- **MCP event-loop blocking** — all six async tool handlers in `server.py` now offload their blocking engine work via `anyio.to_thread.run_sync()`. Previously, sync functions like `run_pr_risk()` and `analyze_churn()` were called directly inside async handlers, which stalls Windows's ProactorEventLoop (IOCP) indefinitely — causing the 1h+ hang observed against `browser-use`. The v0.3.2 `stdin=DEVNULL` fix addressed a different symptom (stdin inheritance) but not this root cause.
+
 ## 0.3.2 (2026-04-20)
 
 ### Bug fixes
