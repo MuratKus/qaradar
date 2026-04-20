@@ -2,11 +2,35 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qaradar.git import changed_files, fork_point_sha, resolve_base_ref
+from qaradar.git import _git, changed_files, fork_point_sha, resolve_base_ref
+
+
+# --- subprocess isolation ---
+
+def test_git_passes_devnull_stdin():
+    """_git must pass stdin=DEVNULL so git never inherits the caller's stdin.
+
+    When qaradar runs as an MCP server its stdin is the MCP protocol pipe.
+    Without DEVNULL, git subprocesses inherit that pipe on Windows and can
+    block indefinitely waiting for input that never arrives.
+    """
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = ""
+
+    with patch("qaradar.git.subprocess.run", return_value=mock_result) as mock_run:
+        _git(Path("/fake/repo"), "log", "--oneline")
+
+    _, kwargs = mock_run.call_args
+    assert kwargs.get("stdin") == subprocess.DEVNULL, (
+        f"_git must pass stdin=subprocess.DEVNULL, got stdin={kwargs.get('stdin')!r}"
+    )
 
 
 # --- resolve_base_ref ---

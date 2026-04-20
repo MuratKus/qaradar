@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2 (2026-04-20)
+
+### Bug fixes
+
+- **MCP Windows subprocess hang** — `_git()` now passes `stdin=subprocess.DEVNULL` to all git subprocesses. Without this, git inherits the MCP server's stdin pipe (connected to the MCP client) on Windows and can block indefinitely. Discovered during OSS validation: `qaradar_pr_risk` hung for 6+ minutes against `browser-use`. Same root-cause class as the cp1252 encoding bug in v0.3.1.
+- **`--json-output` missing file-level data** — `qaradar analyze --base <ref> --json-output` now returns the full ranked file list (`risky_changed_files`, `changed_files_without_tests`, `changed_test_files`, `changed_untracked_by_analyzers`) in addition to aggregate counts. Previously only returned summary counts, making the JSON output useless for programmatic/agent consumption. Adds `PrRiskReport.to_dict()` as the canonical serialization method.
+
 ## 0.3.1 (2026-04-20)
 
 ### Bug fixes

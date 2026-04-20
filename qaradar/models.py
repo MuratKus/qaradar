@@ -135,6 +135,35 @@ class PrRiskReport:
     low_count: int = 0
     status: str = "ok"  # "ok" | "no_changes"
 
+    def to_dict(self) -> dict:
+        """Return a structured dict with full file-level data — suitable for JSON output."""
+        high_plus = self.critical_count + self.high_count
+        total = self.changed_source_files
+        headline = (
+            f"{high_plus} of {total} changed source files are HIGH+ risk"
+            if self.status != "no_changes"
+            else "No changes detected relative to base ref."
+        )
+        return {
+            "summary": self.summary(),
+            "headline": headline,
+            "risky_changed_files": [
+                {
+                    "file": m.path,
+                    "risk": m.risk_level.value.upper(),
+                    "score": round(m.risk_score, 4),
+                    "churn_score": round(m.churn_score, 4),
+                    "coverage_score": round(m.coverage_score, 4),
+                    "test_mapping_score": round(m.test_mapping_score, 4),
+                    "reasons": m.reasons,
+                }
+                for m in self.risky_changed_files
+            ],
+            "changed_files_without_tests": self.changed_files_without_tests,
+            "changed_test_files": self.changed_test_files,
+            "changed_untracked_by_analyzers": self.changed_untracked_by_analyzers,
+        }
+
     def summary(self) -> dict:
         """Return a compact summary dict."""
         high_plus = self.critical_count + self.high_count

@@ -17,7 +17,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="0.3.1", prog_name="qaradar")
+@click.version_option(version="0.3.2", prog_name="qaradar")
 def main():
     """QA Radar — point it at a repo, get the quality landscape."""
 
@@ -42,7 +42,7 @@ def analyze(repo_path: str, days: int, top: int, json_output: bool, base: str | 
             with console.status("[bold blue]Analyzing PR changes..."):
                 pr_report = run_pr_risk(repo_path, base_ref=base, churn_days=days)
             if json_output:
-                click.echo(json.dumps(pr_report.summary(), indent=2))
+                click.echo(json.dumps(pr_report.to_dict(), indent=2))
             else:
                 _render_pr_risk(pr_report)
             return
