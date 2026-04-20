@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from qaradar.engine import run_pr_risk
 from qaradar.models import FileChurn, ModuleRisk, RiskLevel, TestMapping
 from qaradar.server import _format_pr_risk_report
