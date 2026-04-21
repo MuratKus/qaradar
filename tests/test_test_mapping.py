@@ -28,10 +28,22 @@ from qaradar.analyzers.test_mapping import (
     # Java
     ("src/FooTest.java", True),
     ("src/FooTests.java", True),
+    # Rust: filename-pattern
+    ("src/foo_test.rs", True),
+    # Rust: Cargo integration test in tests/ dir
+    ("tests/integration_basic.rs", True),
+    ("crates/mylib/tests/smoke.rs", True),
     # Not test files
     ("src/calculator.py", False),
     ("src/utils.ts", False),
     ("pkg/math.go", False),
+    # Monorepo: fixtures/helpers in __tests__/ must NOT count
+    ("apps/web/__tests__/fixtures/user-data.ts", False),
+    ("apps/web/__tests__/helpers/setup.ts", False),
+    ("apps/web/__tests__/types.ts", False),
+    # Python helper in tests/ without test_ prefix
+    ("tests/fixtures/sample_data.py", False),
+    ("tests/helpers/db.py", False),
 ])
 def test_is_test_file(path, expected):
     assert _is_test_file(Path(path)) == expected

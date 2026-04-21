@@ -8,16 +8,6 @@ from pathlib import Path
 
 from qaradar.models import TestMapping
 
-# Common test directory/file patterns across languages
-TEST_DIR_PATTERNS = {
-    "tests",
-    "test",
-    "__tests__",
-    "spec",
-    "specs",
-    "test_*",
-}
-
 TEST_FILE_PATTERNS = [
     re.compile(r"^test_.*\.py$"),           # Python: test_foo.py
     re.compile(r"^.*_test\.py$"),           # Python: foo_test.py
@@ -100,20 +90,15 @@ def _walk_files(repo: Path):
 
 
 def _is_test_file(rel_path: Path) -> bool:
-    """Check if a path is a test file."""
-    parts = rel_path.parts
-    name = rel_path.name
+    """Check if a path is a test file by filename convention."""
+    if any(p.match(rel_path.name) for p in TEST_FILE_PATTERNS):
+        return True
 
-    # Check if in a test directory
-    in_test_dir = any(
-        part in TEST_DIR_PATTERNS or part.startswith("test")
-        for part in parts[:-1]
-    )
+    # Rust: Cargo convention — every .rs file in a tests/ dir is an integration test.
+    if rel_path.suffix == ".rs" and "tests" in rel_path.parts[:-1]:
+        return True
 
-    # Check filename pattern
-    matches_pattern = any(p.match(name) for p in TEST_FILE_PATTERNS)
-
-    return matches_pattern or (in_test_dir and rel_path.suffix in SOURCE_EXTENSIONS)
+    return False
 
 
 def _is_source_file(rel_path: Path) -> bool:
