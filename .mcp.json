@@ -2,7 +2,7 @@
   "mcpServers": {
     "qaradar": {
       "command": "uvx",
-      "args": ["qaradar", "serve"],
+      "args": ["--reinstall", "qaradar", "serve"],
       "env": { "PYTHONUNBUFFERED": "1" }
     }
   }
