@@ -200,6 +200,20 @@ def test_skip_dirs_excludes_sample_directories(tmp_path):
     assert not any("sample.py" in p for p in paths)
 
 
+def test_skip_dirs_excludes_docs_src(tmp_path):
+    # docs_src tutorial snippets (FastAPI-style) should not count as source
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("def foo(): pass")
+    (tmp_path / "docs_src").mkdir()
+    (tmp_path / "docs_src" / "tutorial001.py").write_text("# tutorial code")
+
+    mappings = analyze_test_mapping(str(tmp_path))
+    paths = {m.source_path for m in mappings}
+
+    assert any("app.py" in p for p in paths)
+    assert not any("tutorial001.py" in p for p in paths)
+
+
 def test_analyze_test_mapping_excludes_custom_dirs(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "app.py").write_text("def foo(): pass")

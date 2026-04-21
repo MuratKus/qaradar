@@ -33,8 +33,9 @@ SKIP_DIRS = {
     "node_modules", ".git", "__pycache__", ".venv", "venv",
     "env", ".tox", ".mypy_cache", ".pytest_cache", "dist",
     "build", ".next", ".nuxt", "vendor", "target",
-    # Sample/demo code — real source that intentionally lacks tests
+    # Sample/demo/docs code — real source that intentionally lacks tests
     "examples", "cookbook", "cookbooks", "samples", "demo", "demos",
+    "docs_src", "doc_src",
 }
 
 
