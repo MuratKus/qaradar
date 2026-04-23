@@ -6,6 +6,25 @@ QA Radar analyzes your codebase and produces a structured quality health report 
 
 Built for developers who want their AI agent to write *targeted* tests, not generic ones.
 
+## Quick Start
+
+**Claude Code — one step:**
+
+```
+/plugin marketplace add Muratkus/qaradar
+/plugin install qaradar@qaradar-marketplace
+```
+
+Then ask your agent: _"What should I test first?"_
+
+Or run directly without installing:
+
+```bash
+uvx qaradar serve
+```
+
+[Full install options ↓](#install-as-claude-code-plugin-recommended)
+
 ## What It Does
 
 QA Radar answers the question every new team member (and every AI agent) asks: **"What should I test first?"**
@@ -76,7 +95,7 @@ uv launches qaradar on demand from PyPI — you don't need to `pip install qarad
 
 **Alternative: manual MCP config** (if you prefer not to use the plugin):
 
-Add to your Claude Code config (`~/.claude/claude_desktop_config.json`):
+Add to your Claude Code MCP config (`~/.claude/mcp.json` for user-level, or `.mcp.json` in the project root for project-level):
 
 ```json
 {
@@ -245,3 +264,5 @@ QA Radar is built on three beliefs:
 ## License
 
 MIT
+
+<!-- mcp-name: io.github.MuratKus/qaradar -->

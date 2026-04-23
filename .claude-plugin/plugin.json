@@ -1,7 +1,7 @@
 {
   "name": "qaradar",
   "description": "QA brain for your AI coding agent — churn, coverage, and test-mapping signals as MCP tools + slash commands",
-  "version": "0.3.0",
+  "version": "0.3.5",
   "author": { "name": "Murat", "email": "me@murat-kus.com" },
   "homepage": "https://github.com/Muratkus/qaradar",
   "repository": "https://github.com/Muratkus/qaradar",

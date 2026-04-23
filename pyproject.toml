@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qaradar"
-version = "0.3.4"
+version = "0.3.5"
 description = "QA Radar — give your AI coding agent the quality brain it doesn't have to grow from scratch."
 readme = "README.md"
 requires-python = ">=3.10"
