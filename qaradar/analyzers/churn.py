@@ -8,14 +8,19 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from qaradar.analyzers.languages import SOURCE_EXTENSIONS
 from qaradar.git import _git
 from qaradar.models import FileChurn
+
+# Default to every source extension the registry knows about, so churn and
+# test-mapping can never disagree on what counts as code.
+_DEFAULT_EXTENSIONS: tuple[str, ...] = tuple(sorted(SOURCE_EXTENSIONS))
 
 
 def analyze_churn(
     repo_path: str,
     days: int = 90,
-    extensions: tuple[str, ...] = (".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".kt", ".swift", ".rb", ".go", ".rs"),
+    extensions: tuple[str, ...] = _DEFAULT_EXTENSIONS,
     excludes: list[str] | None = None,
 ) -> list[FileChurn]:
     """Analyze git history for file churn over the given period.
