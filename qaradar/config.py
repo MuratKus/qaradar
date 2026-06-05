@@ -22,10 +22,25 @@ class ExcludesConfig(BaseModel):
     patterns: list[str] = Field(default_factory=list)
 
 
+class ScheduleConfig(BaseModel):
+    """Criteria that govern when a scheduled/incremental re-run is warranted.
+
+    Consumed by ``qaradar.schedule.should_run`` — the engine that powers
+    ``qaradar should-run`` and the ``qaradar_should_run`` MCP tool.
+    """
+
+    # Re-run the full healthcheck at least this often.
+    interval_days: float = Field(default=7.0, ge=0.0)
+    # Re-run (diff-scoped) once this many source files have changed since the
+    # last recorded run.
+    min_changed_files: int = Field(default=25, ge=1)
+
+
 class QaradarConfig(BaseModel):
     weights: WeightsConfig = Field(default_factory=WeightsConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     excludes: ExcludesConfig = Field(default_factory=ExcludesConfig)
+    schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
 
 
 def load_config(repo_path: str) -> QaradarConfig:

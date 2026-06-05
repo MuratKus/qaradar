@@ -80,3 +80,22 @@ def fork_point_sha(repo: Path, base: str, head: str = "HEAD") -> str:
         return _git(repo, "merge-base", base, head).strip()
     except RuntimeError:
         return _git(repo, "rev-parse", base).strip()
+
+
+def head_sha(repo: Path, head: str = "HEAD") -> str:
+    """Return the resolved SHA of `head` (default HEAD)."""
+    return _git(repo, "rev-parse", head).strip()
+
+
+def commits_since(repo: Path, sha: str, head: str = "HEAD") -> int | None:
+    """Count commits reachable from `head` but not from `sha`.
+
+    Returns None if `sha` is not a valid commit in the repo (e.g. history was
+    rewritten or the stored ref no longer exists), so callers can distinguish
+    "no new commits" (0) from "unknown".
+    """
+    try:
+        out = _git(repo, "rev-list", "--count", f"{sha}..{head}")
+        return int(out.strip())
+    except (RuntimeError, ValueError):
+        return None
