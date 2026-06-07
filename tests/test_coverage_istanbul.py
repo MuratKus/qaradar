@@ -1,7 +1,5 @@
 """Tests for Istanbul/Jest JSON coverage parsing + monorepo discovery."""
 
-from pathlib import Path
-
 import pytest
 
 from qaradar.analyzers.coverage import (
