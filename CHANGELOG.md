@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 (2026-06-05)
+
+### Features
+
+- **Mobile + monorepo language coverage.** Language definitions are now consolidated into a single registry (`qaradar/analyzers/languages.py`) — previously the source-extension list was duplicated and drifting between `test_mapping.py` and `churn.py`. On top of that:
+  - **Objective-C** (`.m`/`.mm`, XCTest `FooTests.m`) and **Dart/Flutter** (`.dart`, `foo_test.dart`, `coverage/lcov.info`) are now supported.
+  - **Swift** and **Kotlin** are promoted to first-class with real test-function counting (`func test…`, `@Test`).
+  - **React Native** dash-suffix test convention (`Foo-test.ts`) is recognized.
+  - **Jest/Istanbul coverage** (`coverage-final.json`, `coverage-summary.json`) is parsed, with monorepo auto-discovery under `packages/*/coverage` and `apps/*/coverage` and repo-relative path normalization.
+- **Run persistence + re-run criteria (opt-in).** `qaradar analyze --save` records a snapshot (last commit, timestamp, per-file risk) to `.qaradar/state.json`. New `qaradar should-run` evaluates whether a re-run is warranted — exit 0/1 plus a JSON decision with recommended scope (`full`/`diff`) — so it can gate cron/CI/git-hooks. `qaradar status` shows the last run and current decision, and `--save` reports a risk delta vs the previous run. Cadence is configured via a new `[schedule]` table (`interval_days`, `min_changed_files`) in `qaradar.toml`.
+- **New MCP tool `qaradar_should_run`** — lets an agent check, after finishing work, whether QA Radar should re-analyze and over which scope.
+
 ## 0.3.3 (2026-04-20)
 
 ### Bug fixes

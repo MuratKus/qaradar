@@ -134,6 +134,7 @@ Once connected, ask your agent:
 | `qaradar_coverage_gaps` | Files with low coverage; where the blind spots are |
 | `qaradar_untested_files` | Source files with no corresponding test files |
 | `qaradar_pr_risk` | Which changed files in this PR need attention |
+| `qaradar_should_run` | After finishing work: should QA Radar re-analyze, and over the diff or the whole repo? |
 
 ### Diff-aware: what's risky in this PR?
 
@@ -197,27 +198,40 @@ pip install -e .
 
 ## Language Support
 
+All language support lives in one registry — `qaradar/analyzers/languages.py` — so
+adding a language is a single entry (extensions, test-name convention, test-function
+counter), consumed by both churn and test-mapping.
+
 ### Tier 1 — First-class, tested
 
 | Language | Test detection | Coverage |
 |----------|---------------|---------|
 | Python | `test_x.py`, `x_test.py` | coverage.py JSON + XML |
-| JavaScript / TypeScript | `x.test.{js,ts,jsx,tsx}`, `x.spec.*` | LCOV |
+| JavaScript / TypeScript | `x.test.*`, `x.spec.*`, `x-test.*` (React Native) | LCOV, Jest/Istanbul JSON |
 | Go | `x_test.go` | Go cover profile (`cover.out`) |
+| Swift | `XTests.swift` (XCTest `func test…`) | Cobertura / LCOV |
+| Kotlin | `XTest.kt` (`@Test`) | Cobertura / LCOV |
+| Dart / Flutter | `x_test.dart` (`test(`, `testWidgets(`) | LCOV (`coverage/lcov.info`) |
+| Objective-C | `XTests.m` / `.mm` (XCTest `- (void)test…`) | Cobertura / LCOV |
 
 ### Tier 2 — Best-effort, naming-based
 
-Java, Kotlin, Ruby, Swift, Rust — test detection via naming conventions, not extensively tested. Coverage via Cobertura XML or LCOV if emitted.
+Java, Ruby, Rust — test detection via naming conventions. Coverage via Cobertura XML or LCOV if emitted.
 
-> Coverage parsing is format-driven (Cobertura / LCOV / coverage.py / Go profile), so it spans more ecosystems than test-mapping detection, which is language-specific.
+> Coverage parsing is format-driven, so it spans more ecosystems than test-mapping detection, which is language-specific.
+
+**Monorepos:** Istanbul/Jest reports are auto-discovered under `packages/*/coverage` and
+`apps/*/coverage`, and absolute/package-relative coverage paths are normalized to
+repo-relative so they join correctly against churn and test-mapping signals.
 
 ## Supported Coverage Formats
 
 | Format | Tools |
 |--------|-------|
 | coverage.py JSON | Python `coverage run` + `coverage json` |
+| Istanbul / Jest JSON | `coverage-final.json`, `coverage-summary.json` (Jest/Vitest/nyc) |
 | Cobertura XML | Python, Java/Gradle, .NET (Coverlet) |
-| LCOV | JS/TS (Jest/Vitest/Istanbul), C/C++, Rust (grcov) |
+| LCOV | JS/TS, Flutter/Dart, C/C++, Rust (grcov) |
 | Go cover profile | `go test -coverprofile=cover.out` |
 
 ## Example Output
@@ -246,12 +260,48 @@ Java, Kotlin, Ruby, Swift, Rust — test detection via naming conventions, not e
 └──────────────────────┴──────────┴───────┴───────────────┘
 ```
 
+## Tracking Runs Over Time
+
+By default QA Radar is stateless. Opt in to persistence to track a repo across runs
+and drive incremental re-analysis (daily/weekly, or after N diffs, or after an agent
+finishes work).
+
+```bash
+qaradar analyze . --save      # record a snapshot to .qaradar/state.json (gitignore it)
+qaradar should-run .          # exit 0 if a re-run is warranted, 1 if not — prints JSON
+qaradar status .              # last run, commits/days since, current decision + risk delta
+```
+
+`should-run` is a **gate**, not a scheduler — wire it into whatever you already use:
+
+```bash
+# cron / CI / git hook: only do expensive work when criteria are met
+qaradar should-run . && qaradar analyze . --save
+```
+
+It reports `scope: "full"` (interval elapsed) or `scope: "diff"` (enough files changed),
+so an agent calling the `qaradar_should_run` MCP tool knows whether to follow up with
+`qaradar_healthcheck` or `qaradar_pr_risk`. State is one `.qaradar/state.json` per repo,
+so a "collection of repos" is just a loop over repos in your own infra.
+
+Tune the criteria in `qaradar.toml`:
+
+```toml
+[schedule]
+interval_days = 7        # re-run the full healthcheck at least weekly
+min_changed_files = 25   # ...or sooner, once this many files have changed
+```
+
+`--save` also reports a **delta** vs the previous run — which files newly became risky,
+which got worse, which improved or resolved.
+
 ## Roadmap
 
 - [x] **v0.1.2** — Claude Code plugin + slash commands
 - [x] **v0.2.0** — Config file (`qaradar.toml`), Tier 2 language validation, hardening
 - [x] **v0.3.0** — Diff-aware mode: `qaradar_pr_risk` + `--base` CLI flag
-- [ ] **v0.4.0** — Flaky test detection from CI history (JUnit XML parsing)
+- [x] **v0.4.0** — Mobile/monorepo language coverage (Swift, Kotlin, Obj-C, Dart, React Native, Jest); run persistence + re-run criteria (`should-run`, `--save`, `qaradar_should_run`)
+- [ ] **v0.5.0** — Flaky test detection from CI history (JUnit XML parsing)
 
 ## Philosophy
 

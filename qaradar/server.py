@@ -100,6 +100,17 @@ class UntestedFilesInput(BaseModel):
     repo_path: str = Field(default=".", description="Path to the git repository")
 
 
+class ShouldRunInput(BaseModel):
+    """Input for the re-run criteria check."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    repo_path: str = Field(
+        default=".",
+        description="Path to the git repository to evaluate (default: current directory)",
+    )
+
+
 class PrRiskInput(BaseModel):
     """Input for PR diff-aware risk analysis."""
 
@@ -361,6 +372,34 @@ async def qaradar_pr_risk(params: PrRiskInput) -> str:
         )
     )
     return _format_pr_risk_report(report, max_results=params.max_results)
+
+
+@mcp.tool(
+    name="qaradar_should_run",
+    annotations=ToolAnnotations(
+        title="Should QA Radar Re-Run?",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def qaradar_should_run(params: ShouldRunInput) -> str:
+    """Use after you finish work to decide whether QA Radar should re-analyze the repo.
+
+    Compares the last recorded run (.qaradar/state.json) against the current git
+    state and the configured cadence ([schedule] in qaradar.toml: interval_days,
+    min_changed_files). Returns a JSON decision: whether to run, the recommended
+    scope ('full' or 'diff'), the reason, and how many commits/files/days have
+    elapsed since the last run.
+
+    If it returns run=true with scope='diff', follow up with qaradar_pr_risk;
+    if scope='full', follow up with qaradar_healthcheck.
+    """
+    from qaradar.schedule import should_run
+
+    decision = await anyio.to_thread.run_sync(lambda: should_run(params.repo_path))
+    return json.dumps(decision.to_dict(), indent=2)
 
 
 # --- Helpers ---

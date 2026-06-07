@@ -3,30 +3,24 @@
 from __future__ import annotations
 
 import fnmatch
-import re
 from pathlib import Path
 
+from qaradar.analyzers.languages import (
+    LANGUAGES,
+    SOURCE_EXTENSIONS,
+    TEST_FILE_PATTERNS,
+    language_for_ext,
+)
 from qaradar.models import TestMapping
 
-TEST_FILE_PATTERNS = [
-    re.compile(r"^test_.*\.py$"),           # Python: test_foo.py
-    re.compile(r"^.*_test\.py$"),           # Python: foo_test.py
-    re.compile(r"^.*\.test\.[jt]sx?$"),     # JS/TS: foo.test.js, foo.test.tsx
-    re.compile(r"^.*\.spec\.[jt]sx?$"),     # JS/TS: foo.spec.js, foo.spec.tsx
-    re.compile(r"^.*Test\.java$"),          # Java: FooTest.java
-    re.compile(r"^.*Tests\.java$"),         # Java: FooTests.java
-    re.compile(r"^.*_test\.go$"),           # Go: foo_test.go
-    re.compile(r"^.*_test\.rb$"),           # Ruby: foo_test.rb
-    re.compile(r"^.*_spec\.rb$"),           # Ruby: foo_spec.rb
-    re.compile(r"^.*Tests?\.kt$"),          # Kotlin
-    re.compile(r"^.*Tests?\.swift$"),       # Swift
-    re.compile(r"^.*_test\.rs$"),           # Rust
+# SOURCE_EXTENSIONS and TEST_FILE_PATTERNS are re-exported from languages.py
+# (the single source of truth) for backwards compatibility with importers.
+__all__ = [
+    "SOURCE_EXTENSIONS",
+    "TEST_FILE_PATTERNS",
+    "analyze_test_mapping",
+    "get_file_counts",
 ]
-
-SOURCE_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx",
-    ".java", ".kt", ".swift", ".go", ".rb", ".rs",
-}
 
 # Directories to always skip
 SKIP_DIRS = {
@@ -120,69 +114,59 @@ def _is_source_file(rel_path: Path) -> bool:
 
 
 def _find_tests_for_source(source: Path, test_files: list[Path]) -> list[Path]:
-    """Find test files that likely correspond to a source file."""
-    stem = source.stem
-    ext = source.suffix
+    """Find test files that likely correspond to a source file.
+
+    Matching is driven by each language's ``stem_templates`` (see
+    ``languages.py``): the source stem is expanded into candidate test stems and
+    compared against each test file's stem. Rust keeps a special case for
+    integration tests living in a sibling ``tests/`` directory.
+    """
+    lang = language_for_ext(source.suffix)
+    if lang is None:
+        return []
+
+    wanted_stems = {t.format(stem=source.stem) for t in lang.stem_templates}
     matches = []
 
     for test in test_files:
-        test_name = test.name
-        test_stem = test.stem
+        # A test must belong to the same language family (shared extensions).
+        if test.suffix not in lang.source_exts:
+            continue
 
-        # Direct naming conventions
-        # Python: foo.py → test_foo.py or foo_test.py
-        if ext == ".py":
-            if test_name == f"test_{stem}.py" or test_name == f"{stem}_test.py":
-                matches.append(test)
-                continue
+        if test.stem in wanted_stems:
+            matches.append(test)
+            continue
 
-        # JS/TS: foo.js → foo.test.js or foo.spec.js
-        if ext in {".js", ".ts", ".jsx", ".tsx"}:
-            base = stem.split(".")[0]  # handle foo.test → foo
-            if test_stem in {f"{base}.test", f"{base}.spec"}:
-                matches.append(test)
-                continue
-
-        # Java/Kotlin: Foo.java → FooTest.java
-        if ext in {".java", ".kt"}:
-            if test_stem in {f"{stem}Test", f"{stem}Tests"}:
-                matches.append(test)
-                continue
-
-        # Go: foo.go → foo_test.go
-        if ext == ".go":
-            if test_name == f"{stem}_test.go":
-                matches.append(test)
-                continue
-
-        # Ruby: foo.rb → foo_test.rb or foo_spec.rb
-        if ext == ".rb":
-            if test_name in {f"{stem}_test.rb", f"{stem}_spec.rb"}:
-                matches.append(test)
-                continue
-
-        # Rust: foo.rs → foo_test.rs (direct), or any .rs in sibling tests/ dir
-        if ext == ".rs":
-            if test_name == f"{stem}_test.rs":
-                matches.append(test)
-                continue
-            # Integration tests: tests/ is a sibling to src/ in the same package
-            src_parts = list(source.parts)
-            test_parts = list(test.parts)
-            if "src" in src_parts:
-                src_idx = src_parts.index("src")
-                pkg_prefix = src_parts[:src_idx]
-                if (len(test_parts) > src_idx
-                        and test_parts[:src_idx] == pkg_prefix
-                        and test_parts[src_idx] == "tests"):
-                    matches.append(test)
-                    continue
+        # Rust: any .rs file in a sibling tests/ dir is an integration test.
+        if lang.name == "rust" and _rust_integration_match(source, test):
+            matches.append(test)
 
     return matches
 
 
+def _rust_integration_match(source: Path, test: Path) -> bool:
+    """Rust: tests/ is a sibling to src/ in the same package."""
+    src_parts = list(source.parts)
+    test_parts = list(test.parts)
+    if "src" not in src_parts:
+        return False
+    src_idx = src_parts.index("src")
+    pkg_prefix = src_parts[:src_idx]
+    return (
+        len(test_parts) > src_idx
+        and test_parts[:src_idx] == pkg_prefix
+        and test_parts[src_idx] == "tests"
+    )
+
+
 def _count_test_functions(test_path: Path) -> int:
-    """Count test functions/methods in a test file (best effort)."""
+    """Count test functions/methods in a test file (best effort).
+
+    Uses the counting rules of the language that owns the test file's
+    extension (see ``languages.py``). If the extension is unknown, every
+    language's rules are tried — the patterns are distinct enough across
+    languages that false positives are negligible.
+    """
     if not test_path.exists():
         return 0
 
@@ -191,24 +175,22 @@ def _count_test_functions(test_path: Path) -> int:
     except (OSError, UnicodeDecodeError):
         return 0
 
+    lang = language_for_ext(test_path.suffix)
+    langs = [lang] if lang is not None else list(LANGUAGES)
+
     count = 0
     for line in content.splitlines():
         stripped = line.strip()
-        # Python: def test_xxx
-        if stripped.startswith("def test_") or stripped.startswith("async def test_"):
-            count += 1
-        # JS/TS: it(', test(', it.each
-        elif re.match(r"^\s*(it|test)\s*[\.(]", stripped):
-            count += 1
-        # Java/Kotlin: @Test
-        elif stripped == "@Test":
-            count += 1
-        # Go: func Test
-        elif stripped.startswith("func Test"):
-            count += 1
-        # Ruby: it "
-        elif re.match(r"^\s*it\s+['\"]", stripped):
-            count += 1
+        if not stripped:
+            continue
+        for candidate in langs:
+            if (
+                any(stripped.startswith(p) for p in candidate.count_startswith)
+                or stripped in candidate.count_exact
+                or any(r.match(stripped) for r in candidate.count_regex)
+            ):
+                count += 1
+                break
 
     return count
 

@@ -15,8 +15,9 @@ def analyze_coverage(repo_path: str, explicit_path: Optional[str] = None) -> lis
 
     Supports:
     - coverage.py JSON (coverage.json)
+    - Istanbul/Jest JSON (coverage-final.json, coverage-summary.json)
     - coverage.py XML / Cobertura (coverage.xml)
-    - lcov (coverage.lcov, lcov.info)
+    - lcov (coverage.lcov, lcov.info) — also Flutter/Dart
     - Go cover profile (cover.out, coverage.out)
 
     If explicit_path is given it takes precedence over auto-discovery.
@@ -30,9 +31,16 @@ def analyze_coverage(repo_path: str, explicit_path: Optional[str] = None) -> lis
         if not p.is_absolute():
             p = repo / p
         if p.exists():
-            entries = _parse_by_extension(p)
+            entries = _parse_by_extension(p, repo)
     else:
-        for finder in [_find_coverage_json, _find_cobertura_xml, _find_lcov, _find_go_cover]:
+        finders = [
+            _find_coverage_json,
+            _find_istanbul_json,
+            _find_cobertura_xml,
+            _find_lcov,
+            _find_go_cover,
+        ]
+        for finder in finders:
             found = finder(repo)
             if found:
                 entries = found
@@ -42,11 +50,29 @@ def analyze_coverage(repo_path: str, explicit_path: Optional[str] = None) -> lis
     return entries
 
 
-def _parse_by_extension(path: Path) -> list[CoverageEntry]:
+def _rel_to_repo(filepath: str, repo: Path) -> str:
+    """Normalize a coverage file path to repo-relative POSIX.
+
+    Istanbul/Jest emit absolute paths (and monorepos emit package-relative or
+    absolute paths); normalize so they join against churn/test-mapping paths.
+    """
+    norm = filepath.replace("\\", "/")
+    if norm.startswith("./"):
+        norm = norm[2:]
+    p = Path(filepath)
+    if p.is_absolute():
+        try:
+            return p.resolve().relative_to(repo).as_posix()
+        except ValueError:
+            return norm
+    return norm
+
+
+def _parse_by_extension(path: Path, repo: Path | None = None) -> list[CoverageEntry]:
     """Dispatch to the right parser based on file name/extension."""
     name = path.name
     if name.endswith(".json"):
-        return _parse_coverage_json(path)
+        return _parse_json_coverage(path, repo)
     if name.endswith(".xml"):
         return _parse_cobertura_xml(path)
     if name.endswith(".info") or name.endswith(".lcov"):
@@ -54,6 +80,28 @@ def _parse_by_extension(path: Path) -> list[CoverageEntry]:
     if name in ("cover.out", "coverage.out", "c.out"):
         return _parse_go_cover(path)
     return []
+
+
+def _parse_json_coverage(path: Path, repo: Path | None = None) -> list[CoverageEntry]:
+    """Sniff a JSON coverage file and dispatch to the right parser.
+
+    Distinguishes coverage.py (has top-level ``files``), Istanbul summary (has
+    ``total``), and Istanbul ``coverage-final.json`` (map of path → file data
+    with ``statementMap``/``s``).
+    """
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+    if not isinstance(data, dict):
+        return []
+    if "files" in data:
+        return _parse_coverage_json(path)
+    if "total" in data:
+        return _parse_istanbul_summary(data, repo)
+    return _parse_istanbul_final(data, repo)
 
 
 def _find_coverage_json(repo: Path) -> Optional[list[CoverageEntry]]:
@@ -66,7 +114,7 @@ def _find_coverage_json(repo: Path) -> Optional[list[CoverageEntry]]:
     ]
     for path in candidates:
         if path.exists():
-            return _parse_coverage_json(path)
+            return _parse_json_coverage(path, repo)
     return None
 
 
@@ -96,6 +144,108 @@ def _parse_coverage_json(path: Path) -> list[CoverageEntry]:
                 branch_rate=None,
                 branches_covered=summary.get("covered_branches"),
                 branches_total=summary.get("num_branches"),
+            )
+        )
+    return entries
+
+
+def _find_istanbul_json(repo: Path) -> Optional[list[CoverageEntry]]:
+    """Find and parse an Istanbul/Jest JSON coverage report.
+
+    Searches common locations including monorepo ``packages/*/coverage`` dirs.
+    """
+    names = ["coverage-final.json", "coverage-summary.json"]
+    dirs = [repo, repo / "coverage"]
+    # Monorepo: packages/*/coverage and apps/*/coverage
+    for parent in ("packages", "apps"):
+        base = repo / parent
+        if base.is_dir():
+            for pkg in sorted(base.iterdir()):
+                if pkg.is_dir():
+                    dirs.append(pkg / "coverage")
+
+    aggregated: list[CoverageEntry] = []
+    for d in dirs:
+        for name in names:
+            path = d / name
+            if path.exists():
+                entries = _parse_json_coverage(path, repo)
+                if entries:
+                    aggregated.extend(entries)
+                # one report per directory is enough
+                break
+    return aggregated or None
+
+
+def _parse_istanbul_final(data: dict, repo: Path | None = None) -> list[CoverageEntry]:
+    """Parse Istanbul ``coverage-final.json`` (map of file path → coverage)."""
+    entries = []
+    for filepath, info in data.items():
+        if not isinstance(info, dict):
+            continue
+        statements = info.get("s")
+        if not isinstance(statements, dict):
+            continue
+        total = len(statements)
+        if total == 0:
+            continue
+        covered = sum(1 for hits in statements.values() if hits)
+
+        branches = info.get("b")
+        branch_rate = branches_covered = branches_total = None
+        if isinstance(branches, dict) and branches:
+            b_total = 0
+            b_covered = 0
+            for arr in branches.values():
+                if isinstance(arr, list):
+                    b_total += len(arr)
+                    b_covered += sum(1 for hits in arr if hits)
+            if b_total > 0:
+                branch_rate = b_covered / b_total
+                branches_covered = b_covered
+                branches_total = b_total
+
+        name = info.get("path", filepath)
+        entries.append(
+            CoverageEntry(
+                path=_rel_to_repo(name, repo) if repo else name,
+                line_rate=covered / total,
+                lines_covered=covered,
+                lines_total=total,
+                branch_rate=branch_rate,
+                branches_covered=branches_covered,
+                branches_total=branches_total,
+            )
+        )
+    return entries
+
+
+def _parse_istanbul_summary(data: dict, repo: Path | None = None) -> list[CoverageEntry]:
+    """Parse Istanbul ``coverage-summary.json`` (per-file lines/branches pct)."""
+    entries = []
+    for filepath, info in data.items():
+        if filepath == "total" or not isinstance(info, dict):
+            continue
+        lines = info.get("lines", {})
+        total = lines.get("total", 0)
+        covered = lines.get("covered", 0)
+        if not total:
+            continue
+
+        branches = info.get("branches", {})
+        b_total = branches.get("total", 0)
+        b_covered = branches.get("covered", 0)
+        branch_rate = (b_covered / b_total) if b_total else None
+
+        entries.append(
+            CoverageEntry(
+                path=_rel_to_repo(filepath, repo) if repo else filepath,
+                line_rate=covered / total,
+                lines_covered=covered,
+                lines_total=total,
+                branch_rate=branch_rate,
+                branches_covered=b_covered if b_total else None,
+                branches_total=b_total if b_total else None,
             )
         )
     return entries

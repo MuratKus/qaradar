@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -17,7 +18,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="0.3.3", prog_name="qaradar")
+@click.version_option(version="0.4.0", prog_name="qaradar")
 def main():
     """QA Radar — point it at a repo, get the quality landscape."""
 
@@ -32,10 +33,17 @@ def main():
     default=None,
     help="Base ref to diff against (e.g. main, origin/main). Enables diff-aware mode.",
 )
-def analyze(repo_path: str, days: int, top: int, json_output: bool, base: str | None):
+@click.option(
+    "--save",
+    is_flag=True,
+    help="Persist this run's snapshot to .qaradar/state.json and report the delta vs the previous run.",
+)
+def analyze(repo_path: str, days: int, top: int, json_output: bool, base: str | None, save: bool):
     """Run a full QA health check on a repository.
 
     With --base, scores only files changed since that ref (diff-aware mode).
+    With --save, records the run so future `qaradar should-run` / `status` calls
+    can reason about cadence, diffs, and risk deltas.
     """
     try:
         if base is not None:
@@ -56,6 +64,15 @@ def analyze(repo_path: str, days: int, top: int, json_output: bool, base: str | 
         console.print(f"[red]Git error:[/red] {e}")
         sys.exit(1)
 
+    delta = None
+    if save:
+        from qaradar.git import head_sha
+        from qaradar.state import compute_delta, load_state, save_run
+
+        previous = load_state(repo_path)
+        delta = compute_delta(previous, report)
+        save_run(repo_path, report, head_sha(Path(repo_path).resolve()))
+
     if json_output:
         output = {
             "summary": report.summary(),
@@ -74,10 +91,91 @@ def analyze(repo_path: str, days: int, top: int, json_output: bool, base: str | 
                 for c in report.high_churn_files
             ],
         }
+        if delta is not None:
+            output["delta"] = delta.to_dict()
         click.echo(json.dumps(output, indent=2))
         return
 
     _render_report(report, days=days)
+    if delta is not None:
+        _render_delta(delta)
+
+
+def _render_delta(delta) -> None:
+    """Render a risk delta (vs the previously saved run)."""
+    d = delta.to_dict()
+    counts = d["counts"]
+    console.print()
+    console.print(
+        f"[bold]Since last saved run:[/bold] "
+        f"[red]{counts['new']} new[/red], "
+        f"[red]{counts['worsened']} worsened[/red], "
+        f"[green]{counts['improved']} improved[/green], "
+        f"[green]{counts['resolved']} resolved[/green]"
+    )
+    for change in delta.new_risks[:10]:
+        console.print(f"  [red]+[/red] {change.path} → {change.to_level}")
+    for change in delta.worsened[:10]:
+        console.print(f"  [yellow]↑[/yellow] {change.path}: {change.from_level} → {change.to_level}")
+    console.print()
+
+
+@main.command(name="should-run")
+@click.argument("repo_path", default=".", type=click.Path(exists=True))
+def should_run_cmd(repo_path: str):
+    """Evaluate re-run criteria and exit 0 if a run is warranted, 1 if not.
+
+    Prints a JSON decision (run, scope, reason, diffs/days since last run).
+    Designed as a gate for cron/CI/git-hooks: `qaradar should-run && qaradar analyze --save`.
+    """
+    from qaradar.schedule import should_run
+
+    try:
+        decision = should_run(repo_path)
+    except (ValueError, RuntimeError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+    click.echo(json.dumps(decision.to_dict(), indent=2))
+    sys.exit(0 if decision.run else 1)
+
+
+@main.command()
+@click.argument("repo_path", default=".", type=click.Path(exists=True))
+def status(repo_path: str):
+    """Show the last recorded run and the current re-run decision."""
+    from qaradar.schedule import should_run
+    from qaradar.state import load_state
+
+    state = load_state(repo_path)
+    if state is None:
+        console.print("[dim]No recorded run. Run `qaradar analyze --save` to start tracking.[/dim]")
+        return
+
+    decision = should_run(repo_path)
+    s = state.summary or {}
+    console.print()
+    console.print(
+        Panel(
+            f"[bold]Last run:[/bold] {state.analyzed_at}\n"
+            f"[bold]Commit:[/bold] {state.head_sha[:12]}\n"
+            f"[bold]Tracked risky files:[/bold] {len(state.file_risks)}  "
+            f"[bold]Critical:[/bold] {s.get('critical_risk_count', '?')}  "
+            f"[bold]High:[/bold] {s.get('high_risk_count', '?')}",
+            title="[bold blue]QA Radar Status[/bold blue]",
+            border_style="blue",
+        )
+    )
+    run_style = "bold red" if decision.run else "green"
+    console.print(
+        f"\n  Commits since: {decision.commits_since}  "
+        f"Changed files: {decision.changed_files_since}  "
+        f"Days since: {decision.days_since}"
+    )
+    console.print(
+        f"  [{run_style}]Decision: {'RUN' if decision.run else 'skip'} "
+        f"(scope={decision.scope})[/{run_style}] — {decision.reason}\n"
+    )
 
 
 @main.command()
